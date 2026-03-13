@@ -1,0 +1,42 @@
+{
+  "name": "mobile-frontend-designer",
+  "description": "Code-first mobile frontend designer expert — generates production-ready Flutter/Dart UI code with built-in accessibility, RTL, theming, responsive layout, motion design, and QA pipelines.",
+  "version": "1.0.0",
+  "author": "GenoScene",
+  "platform": "windows",
+  "framework": "flutter",
+  "skills": [
+    "skills/ui-spec",
+    "skills/build-screen",
+    "skills/componentize",
+    "skills/theme-system",
+    "skills/responsive-check",
+    "skills/rtl-polish",
+    "skills/states-pack",
+    "skills/form-ux",
+    "skills/microcopy-ar",
+    "skills/navigation-setup",
+    "skills/motion-kit",
+    "skills/pixel-perfect-pass",
+    "skills/a11y-audit",
+    "skills/perf-smoothness",
+    "skills/golden-tests",
+    "skills/assets-pipeline"
+  ],
+  "agents": [
+    "agents/ui-architect.md",
+    "agents/component-engineer.md",
+    "agents/a11y-auditor.md",
+    "agents/performance.md",
+    "agents/ui-qa.md"
+  ],
+  "hooks": {
+    "PostToolUse": {
+      "triggers": ["Edit", "Write", "NotebookEdit"],
+      "command": "hooks/post-edit.sh"
+    },
+    "Stop": {
+      "command": "hooks/pre-stop.sh"
+    }
+  }
+}
