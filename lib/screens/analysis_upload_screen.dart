@@ -71,7 +71,7 @@ Future<void> _uploadAndAnalyze() async {
       "Accept": "application/json",
     });
 
-    request.fields['sample_name'] = _pickedFile!.name;
+    request.fields['sample_name'] = _fileName ?? _pickedFile!.name;
 
     if (_pickedFile!.bytes != null) {
       request.files.add(http.MultipartFile.fromBytes(
@@ -87,7 +87,15 @@ Future<void> _uploadAndAnalyze() async {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       final Map<String, dynamic> body = jsonDecode(response.body);
-      
+
+      // طباعة الـ response كامل عشان نعرف شكل الـ JSON
+      print("=== ANALYZE RESPONSE ===");
+      print("Full body keys: ${body.keys.toList()}");
+      print("analysis_id: ${body['analysis_id']}");
+      print("id: ${body['id']}");
+      print("Full body: ${response.body}");
+      print("========================");
+
       // --- التعديل الجوهري لقراءة القائمة ---
       if (body['results'] != null && (body['results'] as List).isNotEmpty) {
         // السيرفر بيبعت لستة، إحنا محتاجين أول عنصر فيها
@@ -102,20 +110,39 @@ Future<void> _uploadAndAnalyze() async {
         final hairData = parseSafe(firstResult['hair']);
         final skinData = parseSafe(firstResult['skin']);
 
-        final newReport = ReportItem(
-          id: body['analysis_id']?.toString() ?? "RPT-${DateTime.now().millisecondsSinceEpoch}",
-          sampleName: _fileName ?? "Unknown Sample",
-          date: DateTime.now(),
-          status: "Completed",
-          hairResults: hairData,
-          eyeResults: eyeData,
-          skinResults: skinData,
-        );
+        // استخراج الـ ID من أي مكان ممكن في الـ response
+        String? extractedId = (body['analysis_id'] ?? body['id'] ?? firstResult['id'] ?? firstResult['analysis_id'])?.toString();
 
         if (mounted) {
           final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+          // لو الـ analyze response مرجعش id، نجيبه من الـ history (أحدث تقرير)
+          if (extractedId == null || extractedId.isEmpty) {
+            await userProvider.loadReports();
+            if (userProvider.reports.isNotEmpty) {
+              // أحدث تقرير هو اللي اترفع دلوقتي
+              extractedId = userProvider.reports.first.id;
+              print("ID fetched from history: $extractedId");
+            }
+          }
+
+          extractedId ??= "RPT-${DateTime.now().millisecondsSinceEpoch}";
+          print("Final Extracted ID: $extractedId");
+
+          final newReport = ReportItem(
+            id: extractedId,
+            sampleName: _fileName ?? "Unknown Sample",
+            date: DateTime.now(),
+            status: "Completed",
+            hairResults: hairData,
+            eyeResults: eyeData,
+            skinResults: skinData,
+          );
+
           userProvider.addReport(newReport);
-          await userProvider.loadReports(); 
+          // حفظ الاسم المعدل محليًا عشان loadReports ما يمسحوش
+          await userProvider.saveFileNameLocally(newReport.id, newReport.sampleName);
+          await userProvider.loadReports();
 
           Navigator.push(
             context,
@@ -124,7 +151,7 @@ Future<void> _uploadAndAnalyze() async {
                 hairResults: hairData,
                 eyeResults: eyeData,
                 skinResults: skinData,
-                analysisId: body['analysis_id']?.toString(),
+                analysisId: extractedId,
               ),
             ),
           );

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
@@ -71,12 +70,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: color,
         shape: BoxShape.circle,
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-        child: const SizedBox(),
+        gradient: RadialGradient(
+          colors: [color, color.withAlpha(0)],
+          stops: const [0.0, 1.0],
+        ),
       ),
     );
   }
@@ -274,18 +272,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final Color textColor = Colors.white;
     final Color secondaryTextColor = AppColors.textTertiary;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
+    return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.xl),
           decoration: BoxDecoration(
-            color: AppColors.surfaceElevated.withAlpha(180), 
+            color: AppColors.surfaceElevated.withAlpha(220),
             borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(
-              color: AppColors.primary.withAlpha(120), 
+              color: AppColors.primary.withAlpha(120),
               width: 1.5,
             ),
           ),
@@ -399,8 +393,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 
