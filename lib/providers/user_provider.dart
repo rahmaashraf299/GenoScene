@@ -55,6 +55,23 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  static const String _baseUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev";
+
+  /// إصلاح URL الصورة - إضافة /media/ لو ناقصة
+  String? _buildFullImageUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    // لو URL كامل بس ناقص /media/
+    if (path.startsWith('http')) {
+      if (!path.contains('/media/')) {
+        return path.replaceFirst('/profile_pics/', '/media/profile_pics/');
+      }
+      return path;
+    }
+    // لو path نسبي
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return "$_baseUrl/media/$cleanPath";
+  }
+
   // Subscription State
   String? _currentPlan;
   SubscriptionCategory? _planCategory;
@@ -97,7 +114,7 @@ class UserProvider extends ChangeNotifier {
       if (userProfile != null) {
         _username = userProfile['username'];
         _email = userProfile['email'];
-        _profilePicture = userProfile['profile_picture'];
+        _profilePicture = _buildFullImageUrl(userProfile['profile_picture']);
         AuthService.updateProfilePic(_profilePicture);
       }
     } catch (e) {
@@ -152,9 +169,13 @@ class UserProvider extends ChangeNotifier {
         // تحويل البيانات لـ ReportItem
         _reports = historyList.map((json) => ReportItem.fromJson(json)).toList();
         
-        // مزامنة الأسماء اللي جاية من السيرفر مع الكاش المحلي
-        for (var report in _reports) {
-          if (report.sampleName.isNotEmpty && !report.sampleName.startsWith('Report #')) {
+        // مزامنة الأسماء: الكاش المحلي له أولوية على اسم السيرفر
+        for (int i = 0; i < _reports.length; i++) {
+          final report = _reports[i];
+          if (_fileNamesCache.containsKey(report.id)) {
+            // لو في اسم محلي معدل، نطبقه على الريبورت بدل اسم السيرفر
+            _reports[i] = report.copyWith(sampleName: _fileNamesCache[report.id]);
+          } else if (report.sampleName.isNotEmpty && !report.sampleName.startsWith('Report #')) {
             _fileNamesCache[report.id] = report.sampleName;
           }
         }

@@ -109,6 +109,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
         String? newPicUrl = responseData['profile_picture'];
         if (newPicUrl != null) {
+          // إضافة /media/ لو ناقصة
+          if (newPicUrl.startsWith('http') && !newPicUrl.contains('/media/')) {
+            newPicUrl = newPicUrl.replaceFirst('/profile_pics/', '/media/profile_pics/');
+          } else if (!newPicUrl.startsWith('http')) {
+            final cleanPath = newPicUrl.startsWith('/') ? newPicUrl.substring(1) : newPicUrl;
+            newPicUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev/media/$cleanPath";
+          }
           newPicUrl =
               "$newPicUrl?v=${DateTime.now().millisecondsSinceEpoch}";
           AuthService.updateProfilePic(newPicUrl);
