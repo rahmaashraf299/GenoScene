@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
@@ -17,6 +17,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    // استدعاء البيانات من الباك-إند فور فتح الشاشة
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<UserProvider>(context, listen: false).loadReports();
     });
@@ -36,15 +37,82 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          Consumer<UserProvider>(
-            builder: (context, userProvider, _) {
-              if (userProvider.reports.isEmpty) return const SizedBox.shrink();
-              return TextButton.icon(
-                onPressed: () => _showClearAllConfirmation(context, userProvider),
-                icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: AppColors.error),
-                label: Text("Clear All", 
-                  style: AppTypography.labelMedium.copyWith(color: AppColors.error, fontWeight: FontWeight.bold)),
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.error),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Dialog(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      decoration: AppColors.glassCard(
+                        backgroundColor: AppColors.surfaceElevated.withAlpha(230),
+                        borderColor: AppColors.error.withAlpha(80),
+                        radius: AppRadius.xl,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withAlpha(25),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.warning_amber_rounded, size: 40, color: AppColors.error),
+                          ),
+                          AppSpacing.vLg,
+                          Text("Clear All History?", style: AppTypography.displaySmall, textAlign: TextAlign.center),
+                          AppSpacing.vSm,
+                          Text(
+                            "This action cannot be undone. All your previous DNA analysis reports will be permanently deleted.", 
+                            style: AppTypography.bodyMedium, 
+                            textAlign: TextAlign.center,
+                          ),
+                          AppSpacing.vXl,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                                  ),
+                                  child: Text("Cancel", style: AppTypography.labelLarge.copyWith(color: AppColors.textSecondary)),
+                                ),
+                              ),
+                              AppSpacing.hMd,
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.error,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                                  ),
+                                  child: Text("Clear All", style: AppTypography.labelLarge.copyWith(color: Colors.white)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               );
+              if (confirmed == true) {
+                final provider = Provider.of<UserProvider>(context, listen: false);
+                await provider.clearAllReports();
+                await provider.loadReports();
+              }
             },
           ),
           const SizedBox(width: 8),
@@ -61,6 +129,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         child: SafeArea(
           child: Consumer<UserProvider>(
             builder: (context, userProvider, child) {
+              // حالة التحميل (Loading)
               if (userProvider.isReportsLoading && userProvider.reports.isEmpty) {
                 return const Center(
                   child: CircularProgressIndicator(color: AppColors.primary),
@@ -69,28 +138,28 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
               final reports = userProvider.reports;
 
+              // حالة عدم وجود بيانات (Empty State)
+              if (reports.isEmpty) {
+                return _buildEmptyState();
+              }
+
               return RefreshIndicator(
                 onRefresh: () => userProvider.loadReports(),
                 color: AppColors.primary,
                 backgroundColor: AppColors.surfaceCard,
-                child: reports.isEmpty 
-                  ? SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Container(
-                        height: MediaQuery.of(context).size.height * 0.7,
-                        alignment: Alignment.center,
-                        child: _buildEmptyState(),
-                      ),
-                    )
-                  : ListView.builder(
-                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.base),
-                      itemCount: reports.length,
-                      itemBuilder: (context, index) {
-                        // هنا تأكدي إن عندك Widget اسمه AnimatedEntrance أو استبدليه بـ Padding عادي لو فيه Error
-                        return _HistoryReportCard(report: reports[index]);
-                      },
-                    ),
+                child: ListView.builder(
+                  physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics()),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg, vertical: AppSpacing.base),
+                  itemCount: reports.length,
+                  itemBuilder: (context, index) {
+                    return AnimatedEntrance(
+                      delay: Duration(milliseconds: index * 60),
+                      child: _HistoryReportCard(report: reports[index]),
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -135,37 +204,6 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       ),
     );
   }
-
-  void _showClearAllConfirmation(BuildContext context, UserProvider userProvider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-        title: Text("Clear All History?", style: AppTypography.titleLarge),
-        content: const Text("This will permanently remove all analysis records. This action cannot be undone."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: AppColors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await userProvider.clearAllReports(); // استدعاء الدالة المعدلة
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("History cleared from server"), backgroundColor: AppColors.error),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text("Clear All", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _HistoryReportCard extends StatelessWidget {
@@ -173,32 +211,46 @@ class _HistoryReportCard extends StatelessWidget {
 
   const _HistoryReportCard({required this.report});
 
+  // منطق الألوان بناءً على حالة الريبورت القادم من الباك-إند
   Color get _statusColor {
     switch (report.status) {
-      case "Completed": return AppColors.success;
-      case "Processing": return AppColors.warning;
-      case "Failed": return AppColors.error;
-      default: return AppColors.textDisabled;
+      case "Completed":
+        return AppColors.success;
+      case "Processing":
+        return AppColors.warning;
+      case "Failed":
+        return AppColors.error;
+      default:
+        return AppColors.textDisabled;
     }
   }
 
   IconData get _statusIcon {
     switch (report.status) {
-      case "Completed": return Icons.check_circle_outline_rounded;
-      case "Processing": return Icons.hourglass_top_rounded;
-      case "Failed": return Icons.error_outline_rounded;
-      default: return Icons.help_outline_rounded;
+      case "Completed":
+        return Icons.check_circle_outline_rounded;
+      case "Processing":
+        return Icons.hourglass_top_rounded;
+      case "Failed":
+        return Icons.error_outline_rounded;
+      default:
+        return Icons.help_outline_rounded;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<String> months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    // تنسيق التاريخ المستلم من الباك-إند
+    final List<String> months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
     final dateStr = "${months[report.date.month - 1]} ${report.date.day}, ${report.date.year}";
 
     String topTrait = "Inconclusive";
     double maxConfidence = -1;
 
+    // دالة لتحديد السمة الغالبة بناءً على أعلى نسبة مئوية راجعة من الـ AI
     void updateTopTrait(Map<String, double>? results) {
       if (results != null && results.isNotEmpty) {
         results.forEach((key, value) {
@@ -238,29 +290,22 @@ class _HistoryReportCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Consumer<UserProvider>(
-                  builder: (context, userProvider, _) {
-                    // الأولوية لـ sample_name اللي جاي من الـ JSON الجديد
-                    final displayName = (report.sampleName.isNotEmpty) 
-                        ? report.sampleName 
-                        : "Report #${report.id}";
-                        
-                    return Text(
-                      displayName,
-                      style: AppTypography.titleSmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    );
-                  },
+                Text(
+                  (report.sampleName == null || report.sampleName == "Unknown Sample" || report.sampleName.isEmpty)
+                      ? 'Report #${report.id}'
+                      : report.sampleName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 AppSpacing.vXs,
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.textTertiary),
+                    Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.textTertiary),
                     AppSpacing.hXs,
                     Text(dateStr, style: AppTypography.labelSmall.copyWith(color: AppColors.textTertiary)),
                     AppSpacing.hBase,
-                    const Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
+                    Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
                     AppSpacing.hXs,
                     Text(
                       "Primary: $displayTrait",
@@ -274,15 +319,10 @@ class _HistoryReportCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            onPressed: () => _showDeleteConfirmation(context),
-            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.textTertiary, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Delete',
-          ),
-          const SizedBox(width: 12),
-          if (report.status == "Completed")
+          // زر العرض لا يظهر إلا إذا كانت الحالة مكتملة والبيانات موجودة
+          if (report.status == "Completed" && 
+              report.hairResults != null && 
+              report.eyeResults != null)
             ElevatedButton(
               onPressed: () => _navigateToResults(context),
               style: ElevatedButton.styleFrom(
@@ -304,136 +344,102 @@ class _HistoryReportCard extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(width: 8),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Dialog(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      decoration: AppColors.glassCard(
+                        backgroundColor: AppColors.surfaceElevated.withAlpha(230),
+                        borderColor: AppColors.error.withAlpha(80),
+                        radius: AppRadius.xl,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withAlpha(25),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.delete_outline_rounded, size: 40, color: AppColors.error),
+                          ),
+                          AppSpacing.vLg,
+                          Text("Delete Report?", style: AppTypography.displaySmall, textAlign: TextAlign.center),
+                          AppSpacing.vSm,
+                          Text(
+                            "Are you sure you want to delete this report? This action cannot be undone.", 
+                            style: AppTypography.bodyMedium, 
+                            textAlign: TextAlign.center,
+                          ),
+                          AppSpacing.vXl,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                                  ),
+                                  child: Text("Cancel", style: AppTypography.labelLarge.copyWith(color: AppColors.textSecondary)),
+                                ),
+                              ),
+                              AppSpacing.hMd,
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.error,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                                  ),
+                                  child: Text("Delete", style: AppTypography.labelLarge.copyWith(color: Colors.white)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+
+              if (confirmed == true) {
+                final provider = Provider.of<UserProvider>(context, listen: false);
+                await provider.removeReport(report.id.toString());
+                await provider.loadReports();
+              }
+            },
+          ),
         ],
       ),
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withAlpha(150),
-      builder: (context) => Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.xl),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    width: MediaQuery.of(context).size.width * 0.85,
-                    padding: const EdgeInsets.all(AppSpacing.xl),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated.withAlpha(200),
-                      borderRadius: BorderRadius.circular(AppRadius.xl),
-                      border: Border.all(color: AppColors.surfaceBorder, width: 1.5),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Icon at top
-                        Container(
-                          padding: const EdgeInsets.all(AppSpacing.base),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withAlpha(20),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.error_outline_rounded,
-                            color: AppColors.error,
-                            size: 40,
-                          ),
-                        ),
-                        AppSpacing.vLg,
-                        // Title
-                        Text(
-                          "Delete Analysis?",
-                          textAlign: TextAlign.center,
-                          style: AppTypography.displayLarge,
-                        ),
-                        AppSpacing.vSm,
-                        // Content Text
-                        Text(
-                          "This will permanently remove the record.",
-                          textAlign: TextAlign.center,
-                          style: AppTypography.bodyMedium.copyWith(color: AppColors.textTertiary),
-                        ),
-                        AppSpacing.vXl,
-                        // Actions
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                                ),
-                                child: Text(
-                                  "Cancel",
-                                  style: AppTypography.labelLarge.copyWith(color: AppColors.textTertiary),
-                                ),
-                              ),
-                            ),
-                            AppSpacing.hMd,
-                            Expanded(
-                              flex: 2,
-                              child: GestureDetector(
-                                onTap: () async {
-                                  await Provider.of<UserProvider>(context, listen: false).removeReport(report.id);
-                                  if (context.mounted) Navigator.pop(context);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFFEF5350), Color(0xFFD32F2F)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(100),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.error.withAlpha(60),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    "Delete",
-                                    style: AppTypography.labelLarge.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _navigateToResults(BuildContext context) {
+    // الانتقال لصفحة النتائج مع تمرير البيانات الحية المستلمة
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => AnalysisResultScreen(
-          hairResults: report.hairResults ?? {},
-          eyeResults: report.eyeResults ?? {},
-          skinResults: report.skinResults ?? {},
+          hairResults: report.hairResults!,
+          eyeResults: report.eyeResults!,
+          skinResults: report.skinResults ?? {}, // التعامل مع احتمالية عدم وجود بيانات للجلد
           analysisId: report.id,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -441,7 +447,10 @@ class _HistoryReportCard extends StatelessWidget {
           const end = Offset.zero;
           const curve = Curves.easeInOutCubic;
           var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          return SlideTransition(position: animation.drive(tween), child: child);
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
         },
       ),
     );

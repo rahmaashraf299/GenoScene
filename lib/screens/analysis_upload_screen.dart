@@ -6,9 +6,10 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dna_loading_overlay.dart';
+import 'analysis_result_screen.dart';
+import '../models/report_item.dart';
 import '../services/auth_service.dart';
-import '../widgets/custom_name_dialog.dart';
-import 'package:http_parser/http_parser.dart';
+
 class AnalysisUploadScreen extends StatefulWidget {
   const AnalysisUploadScreen({super.key});
 
@@ -18,7 +19,6 @@ class AnalysisUploadScreen extends StatefulWidget {
 
 class _AnalysisUploadScreenState extends State<AnalysisUploadScreen> {
   String? _fileName;
-  String? _customName;
   PlatformFile? _pickedFile;
   bool _isAnalyzing = false;
 
@@ -41,20 +41,6 @@ class _AnalysisUploadScreenState extends State<AnalysisUploadScreen> {
           _fileName = result.files.single.name;
           _pickedFile = result.files.single;
         });
-
-        if (mounted) {
-          final String? newName = await showDialog<String>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => CustomNameDialog(initialName: _fileName!),
-          );
-
-          if (newName != null && newName.isNotEmpty) {
-            setState(() {
-              _customName = newName;
-            });
-          }
-        }
       }
     } catch (e) {
       debugPrint("File picker error: $e");
@@ -63,79 +49,96 @@ class _AnalysisUploadScreenState extends State<AnalysisUploadScreen> {
 
 //static const String _analysisUrl = "http://10.0.2.2:8080/analyze";
   // تغيير العنوان ليتوافق مع الباك-إند (Port 8000) ومع الكروم (localhost)
+static const String _analysisUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev/api/analyze/";
 
 Future<void> _uploadAndAnalyze() async {
   if (_pickedFile == null) return;
   setState(() => _isAnalyzing = true);
-  DnaLoadingOverlay.show(context, message: "Uploading...");
+
+  DnaLoadingOverlay.show(
+    context,
+    message: "Analyzing DNA Sequence...",
+    subMessage: "Running AI Models",
+  );
 
   try {
     final token = await AuthService.getToken();
-    final baseUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev/api";
-
-    // --- الخطوة 1: الرفع ---
-    var uploadRequest = http.MultipartRequest('POST', Uri.parse('$baseUrl/dna-samples/upload-file/'));
-    uploadRequest.headers.addAll({
+    final request = http.MultipartRequest('POST', Uri.parse(_analysisUrl));
+    
+    request.headers.addAll({
       "Authorization": "Bearer $token",
       "ngrok-skip-browser-warning": "69420",
+      "Accept": "application/json",
     });
 
-    uploadRequest.fields['name'] = _customName ?? _fileName ?? "Sample";
+    request.fields['sample_name'] = _pickedFile!.name;
 
     if (_pickedFile!.bytes != null) {
-  uploadRequest.files.add(http.MultipartFile.fromBytes(
-    'file', // غيري دي من dna_file لـ file
-    _pickedFile!.bytes!,
-    filename: _fileName ?? 'data.csv',
-    contentType: MediaType('text', 'csv'), 
-  ));
-}
-
-    var streamedResponse = await uploadRequest.send();
-    var uploadResponse = await http.Response.fromStream(streamedResponse);
-
-    // لو السيرفر رفض (400)، هنطبع السبب اللي هو كاتبه بنفسه
-    if (uploadResponse.statusCode != 200 && uploadResponse.statusCode != 201) {
-      print("SERVER ERROR BODY: ${uploadResponse.body}"); // ده أهم سطر دلوقتي
-      throw "Server says: ${uploadResponse.body}";
+      request.files.add(http.MultipartFile.fromBytes(
+        'file', _pickedFile!.bytes!,
+        filename: _fileName ?? 'upload.csv',
+      ));
     }
 
-    final uploadData = jsonDecode(uploadResponse.body);
-    final sampleId = uploadData['id'];
-    // --- الانتظار لمدة 3 ثواني (عشان السيرفر يلحق يسيف الملف) ---
-    DnaLoadingOverlay.show(context, message: "Finalizing storage...");
-    await Future.delayed(const Duration(seconds: 3));
+    final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamedResponse);
 
-    // --- الخطوة 2: التحليل ---
-    final analyzeResponse = await http.post(
-      Uri.parse('$baseUrl/analyze/'),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "69420",
-      },
-      body: jsonEncode({"dna_sample_id": sampleId}),
-    );
+    if (mounted) DnaLoadingOverlay.hide(context);
 
-    if (analyzeResponse.statusCode == 200 || analyzeResponse.statusCode == 201) {
-      if (mounted) {
-        DnaLoadingOverlay.hide(context);
-        _showSuccess("Analysis Started!");
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        await userProvider.loadReports();
-        if (mounted) {
-          Navigator.pop(context);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final Map<String, dynamic> body = jsonDecode(response.body);
+      
+      // --- التعديل الجوهري لقراءة القائمة ---
+      if (body['results'] != null && (body['results'] as List).isNotEmpty) {
+        // السيرفر بيبعت لستة، إحنا محتاجين أول عنصر فيها
+        final firstResult = body['results'][0];
+
+        Map<String, double> parseSafe(dynamic data) {
+          if (data == null || data is! Map) return {};
+          return data.map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
         }
+
+        final eyeData = parseSafe(firstResult['eye']);
+        final hairData = parseSafe(firstResult['hair']);
+        final skinData = parseSafe(firstResult['skin']);
+
+        final newReport = ReportItem(
+          id: body['analysis_id']?.toString() ?? "RPT-${DateTime.now().millisecondsSinceEpoch}",
+          sampleName: _fileName ?? "Unknown Sample",
+          date: DateTime.now(),
+          status: "Completed",
+          hairResults: hairData,
+          eyeResults: eyeData,
+          skinResults: skinData,
+        );
+
+        if (mounted) {
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          userProvider.addReport(newReport);
+          await userProvider.loadReports(); 
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AnalysisResultScreen(
+                hairResults: hairData,
+                eyeResults: eyeData,
+                skinResults: skinData,
+                analysisId: body['analysis_id']?.toString(),
+              ),
+            ),
+          );
+        }
+      } else {
+        _showError("No analysis results found in the server response.");
       }
     } else {
-      throw "Analyze Step Failed: ${analyzeResponse.body}";
+      _showError("Server Error: ${response.statusCode}");
     }
   } catch (e) {
-    if (mounted) {
-      DnaLoadingOverlay.hide(context);
-      print("CRITICAL LOG: $e");
-      _showError("Details: $e");
-    }
+    if (mounted) DnaLoadingOverlay.hide(context);
+    print("UI ERROR: $e"); // عشان نعرف لو فيه مشكلة في تحويل البيانات
+    _showError("Error processing results. Please check the log.");
   } finally {
     if (mounted) setState(() => _isAnalyzing = false);
   }
@@ -290,22 +293,149 @@ Future<void> _uploadAndAnalyze() async {
       ),
     );
   }
+  // ──────────────────────────────────────────────────────────────────────────
 
-  void _showSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text(message, style: const TextStyle(color: AppColors.textPrimary)),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md)),
-        duration: const Duration(seconds: 3),
-      ),
+  void _showSampleIdentityModal() {
+    final TextEditingController nameController = TextEditingController(text: _fileName);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundMid,
+              borderRadius: BorderRadius.circular(AppRadius.xxl),
+              border: Border.all(color: AppColors.surfaceBorderAccent, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withAlpha(20),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppSpacing.vSm,
+                // Top Icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary.withAlpha(80), width: 1),
+                  ),
+                  child: const Icon(Icons.edit_rounded, size: 28, color: AppColors.primary),
+                ),
+                AppSpacing.vLg,
+                // Title
+                Text(
+                  "Sample Identity",
+                  style: AppTypography.displayLarge.copyWith(fontSize: 24),
+                ),
+                AppSpacing.vSm,
+                // Subtitle
+                Text(
+                  "Give this analysis a name for easier identification:",
+                  style: AppTypography.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                AppSpacing.vXl,
+                // TextField
+                TextField(
+                  controller: nameController,
+                  style: AppTypography.titleMedium,
+                  textAlignVertical: TextAlignVertical.center,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.surfaceElevated,
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.only(left: 16, right: 12),
+                      child: Icon(Icons.label_outline_rounded, color: AppColors.primary, size: 24),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.xxl),
+                      borderSide: BorderSide(color: AppColors.primary.withAlpha(80)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.xxl),
+                      borderSide: BorderSide(color: AppColors.primary.withAlpha(80)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.xxl),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+                AppSpacing.vXl,
+                // Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                      ),
+                      child: Text(
+                        "Use Filename",
+                        style: AppTypography.titleSmall.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.accentGradient,
+                        borderRadius: BorderRadius.circular(100),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withAlpha(60),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          )
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                        ),
+                        onPressed: () {
+                          if (nameController.text.trim().isNotEmpty) {
+                            setState(() {
+                              _fileName = nameController.text.trim();
+                            });
+                          }
+                          Navigator.pop(ctx);
+                        },
+                        child: Text(
+                          "Save & Continue",
+                          style: AppTypography.titleSmall.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
-  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -473,11 +603,26 @@ Future<void> _uploadAndAnalyze() async {
                             size: 40, color: AppColors.primary),
                       ),
                       AppSpacing.vBase,
-                      Text(_fileName!,
-                          style: AppTypography.titleSmall,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _fileName!,
+                              style: AppTypography.titleSmall,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_rounded, color: AppColors.primary, size: 20),
+                            onPressed: _showSampleIdentityModal,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
                       AppSpacing.vSm,
                       Text('Tap to change file',
                           style: AppTypography.labelSmall

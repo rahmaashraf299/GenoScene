@@ -15,7 +15,6 @@ class CustomNameDialog extends StatefulWidget {
 
 class _CustomNameDialogState extends State<CustomNameDialog> {
   late TextEditingController _nameController;
-  bool _isEditing = false; // Toggle state for View vs Editing modes
 
   @override
   void initState() {
@@ -82,54 +81,15 @@ class _CustomNameDialogState extends State<CustomNameDialog> {
                 ),
                 AppSpacing.vXl,
 
-                // Main Content - Toggles between Row (View) and TextField (Edit)
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _isEditing ? _buildEditingMode() : _buildViewMode(),
-                ),
+                // Main Content - Edit TextField
+                _buildEditingMode(),
                 
-                // Final Action Buttons - Only revealed when editing
-                if (_isEditing) ...[
-                  AppSpacing.vXl,
-                  _buildActionButtons(),
-                ],
+                // Final Action Buttons
+                AppSpacing.vXl,
+                _buildActionButtons(),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildViewMode() {
-    return GestureDetector(
-      key: const ValueKey("view_mode"),
-      onTap: () => setState(() => _isEditing = true),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: Row(
-          mainAxisSize: MainAxisSize.min, // Keep it compact
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Text(
-                _nameController.text,
-                style: AppTypography.bodyLarge.copyWith(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 4), // Strict 4px spacing
-            const Icon(
-              Icons.edit, 
-              color: Color(0xFF4BD9E6), // Project Cyan Accent
-              size: 20,
-            ),
-          ],
         ),
       ),
     );

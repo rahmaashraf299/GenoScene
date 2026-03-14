@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(pip install:*)",
+      "Bash(pip uninstall:*)",
+      "Bash(python -c:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(# Let me try a different approach - add the generation to the backend using Python # First check if Python has requests or can install pillow for a local approach cd \"\"D:/work/.test/finaldna \\(6\\)/dna/backend\"\" && pip list | grep -i -E \"\"requests|pillow|huggingface\"\" 2>&1)",
+      "Bash(flutter build:*)",
+      "Bash(chmod:*)",
+      "Bash(head:*)",
+      "Bash(dart format:*)",
+      "Bash(tail:*)"
+    ]
+  }
+}
