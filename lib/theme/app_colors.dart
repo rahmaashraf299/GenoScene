@@ -38,6 +38,10 @@ abstract class AppColors {
   static const Color info = Color(0xFF42A5F5);
   static const Color infoMuted = Color(0x1942A5F5);
 
+  // ── Feature-specific ──
+  static const Color premiumGold = Color(0xFFFFD700);
+  static const Color hairPurple = Color(0xFFAB47BC);
+
   // ── Text ──
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xB3FFFFFF); // 70%
@@ -70,6 +74,12 @@ abstract class AppColors {
     end: Alignment.bottomCenter,
   );
 
+  static const LinearGradient elevatedCardGradient = LinearGradient(
+    colors: [Color(0xFF1A3A5C), Color(0xFF0F2440)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   static const LinearGradient ctaGradient = LinearGradient(
     colors: [Color(0xFF0D2137), Color(0xFF1A3A5C)],
     begin: Alignment.topLeft,
@@ -81,6 +91,20 @@ abstract class AppColors {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
+
+  // ── Shadows ──
+  static const List<BoxShadow> shadowSm = [
+    BoxShadow(color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 2)),
+  ];
+  static const List<BoxShadow> shadowMd = [
+    BoxShadow(color: Color(0x26000000), blurRadius: 16, offset: Offset(0, 4)),
+  ];
+  static const List<BoxShadow> shadowLg = [
+    BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, 8)),
+  ];
+  static List<BoxShadow> shadowGlow(Color color, {double blur = 16}) => [
+        BoxShadow(color: color.withAlpha(80), blurRadius: blur),
+      ];
 
   // ── Glass helper ──
   static BoxDecoration glassCard({

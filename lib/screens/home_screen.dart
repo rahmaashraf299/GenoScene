@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
-import '../styles.dart';
+import '../config/api_config.dart';
+import '../theme/app_theme.dart';
 import '../widgets/dna_loading_indicator.dart';
 import 'analysis_upload_screen.dart';
 import 'learn_screen.dart';
 import 'profile_screen.dart';
-import '../services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -69,14 +69,22 @@ class _HomeScreenState extends State<HomeScreen> {
             colors: [AppColors.background, AppColors.surface],
           ),
         ),
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildHomeContent(),
-            const AnalysisUploadScreen(),
-            const LearnScreen(),
-            const ProfileScreen(),
-          ],
+        child: AnimatedSwitcher(
+          duration: AppMotion.standard,
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) =>
+              FadeTransition(opacity: animation, child: child),
+          child: IndexedStack(
+            key: ValueKey(_currentIndex),
+            index: _currentIndex,
+            children: [
+              _buildHomeContent(),
+              const AnalysisUploadScreen(),
+              const LearnScreen(),
+              const ProfileScreen(),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNavBar(),
@@ -88,8 +96,20 @@ class _HomeScreenState extends State<HomeScreen> {
   // ═══════════════════════════════════════
   Widget _buildHomeContent() {
     return SafeArea(
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
+      child: RefreshIndicator(
+        onRefresh: () async {
+          _loadDailyFact();
+          final userProvider =
+              Provider.of<UserProvider>(context, listen: false);
+          if (!userProvider.isGuest) {
+            await userProvider.fetchUserProfile();
+          }
+        },
+        color: AppColors.primary,
+        backgroundColor: AppColors.surfaceCard,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics()),
         slivers: [
           SliverToBoxAdapter(child: AppSpacing.vBase),
 
@@ -226,6 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
+      ),
     );
   }
 
@@ -233,12 +254,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeader() {
     return Row(
       children: [
-        ValueListenableBuilder<String?>(
-          valueListenable: AuthService.profilePicNotifier,
-          builder: (context, pic, _) {
+        Consumer<UserProvider>(
+          builder: (context, userProvider, _) {
+            final pic = userProvider.isGuest
+                ? null
+                : userProvider.profilePicture;
             return Semantics(
               label: 'Profile picture',
-              child: Container(
+              child: SizedBox(
                 width: 44,
                 height: 44,
                 child: ClipOval(
@@ -247,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           pic,
                           key: ValueKey(pic),
                           fit: BoxFit.cover,
+                          headers: ApiConfig.ngrokHeaders,
                           errorBuilder: (_, __, ___) => Image.asset(
                               'assets/images/genoscene_logo.png',
                               fit: BoxFit.cover),
@@ -461,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'genes': 'MC1R, TYR',
         'snps': '35 SNPs',
         'acc': '95.1%',
-        'color': const Color(0xFFAB47BC),
+        'color': AppColors.hairPurple,
       },
       {
         'icon': Icons.person_outline,
@@ -888,11 +912,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           padding: AppSpacing.cardLarge,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0D2137), Color(0xFF1A3A5C)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: AppColors.ctaGradient,
             borderRadius: AppRadius.banner,
             border: Border.all(color: AppColors.surfaceBorderAccent),
             boxShadow: [
@@ -1022,7 +1042,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: (i) {
+          HapticFeedback.selectionClick();
+          setState(() => _currentIndex = i);
+        },
         backgroundColor: Colors.transparent,
         elevation: 0,
         selectedItemColor: AppColors.primary,

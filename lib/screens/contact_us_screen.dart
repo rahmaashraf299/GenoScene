@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../theme/app_theme.dart';
 
 class ContactUsScreen extends StatefulWidget {
@@ -28,9 +30,6 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
 
   // ─── API logic unchanged ───────────────────────────────────────────────────
   Future<void> _sendMessage() async {
-    final String url =
-        "https://naida-pterodactylous-chillingly.ngrok-free.dev/api/contact-us/";
-
     final contactData = {
       "username": _usernameController.text.trim(),
       "email": _emailController.text.trim(),
@@ -40,10 +39,10 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse(url),
+        Uri.parse("${ApiConfig.apiUrl}${ApiConfig.contactUsEndpoint}"),
         headers: {
           "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "69420",
+          ...ApiConfig.ngrokHeaders,
         },
         body: jsonEncode(contactData),
       );
@@ -140,11 +139,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                     width: double.infinity,
                     padding: AppSpacing.cardLarge,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1A3A5C), Color(0xFF0F2440)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: AppColors.elevatedCardGradient,
                       borderRadius: AppRadius.card,
                       border: Border.all(
                           color: AppColors.surfaceBorderAccent),
@@ -413,7 +408,10 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
             ],
           ),
           child: ElevatedButton(
-            onPressed: _sendMessage,
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              _sendMessage();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,

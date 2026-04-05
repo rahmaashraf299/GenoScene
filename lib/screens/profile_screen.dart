@@ -1,9 +1,12 @@
 import 'dart:ui';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
+import '../config/api_config.dart';
 import '../theme/app_theme.dart';
+import '../widgets/shimmer_skeleton.dart';
 import 'edit_profile_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'contact_us_screen.dart';
@@ -34,9 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Consumer<UserProvider>(
       builder: (context, userProvider, child) {
         if (userProvider.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
+          return const ProfileShimmer();
         }
 
         if (userProvider.isGuest) {
@@ -157,11 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: AppSpacing.cardLarge,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A3A5C), Color(0xFF0F2440)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppColors.elevatedCardGradient,
         borderRadius: AppRadius.card,
         border: Border.all(color: AppColors.surfaceBorderAccent),
         boxShadow: [
@@ -197,7 +194,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               backgroundColor: AppColors.surface,
               backgroundImage: (userProvider.profilePicture != null &&
                       userProvider.profilePicture!.isNotEmpty)
-                  ? NetworkImage(userProvider.profilePicture!)
+                  ? NetworkImage(
+                      userProvider.profilePicture!,
+                      headers: ApiConfig.ngrokHeaders,
+                    )
                   : const AssetImage('assets/images/genoscene_logo.png')
                       as ImageProvider,
             ),
@@ -283,7 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         icon: Icons.card_membership_rounded,
         title: "Subscription Plans",
         subtitle: "Upgrade for premium insights",
-        color: const Color(0xFFFFD700), // Premium Gold
+        color: AppColors.premiumGold,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -517,6 +517,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: ElevatedButton(
                         onPressed: () async {
+                          HapticFeedback.mediumImpact();
                           await AuthService.removeToken();
                           if (context.mounted) {
                             Provider.of<UserProvider>(context, listen: false)

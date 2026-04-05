@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'providers/user_provider.dart';
-import 'screens/home_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,23 +33,23 @@ class GenoSceneApp extends StatelessWidget {
         title: 'GenoScene',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          scaffoldBackgroundColor: const Color(0xFF0A1628),
+          scaffoldBackgroundColor: AppColors.backgroundMid,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF0A1628), // Deep Navy
-            primary: const Color(0xFF4DD0E1), // Cyan
-            secondary: const Color(0xFF134074), // Secondary Navy
+            seedColor: AppColors.backgroundMid,
+            primary: AppColors.primary,
+            secondary: AppColors.secondary,
             brightness: Brightness.dark,
           ),
           textTheme:
               GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme).apply(
-            bodyColor: Colors.white,
-            displayColor: Colors.white,
+            bodyColor: AppColors.textPrimary,
+            displayColor: AppColors.textPrimary,
           ),
           useMaterial3: true,
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4DD0E1), // Cyan buttons
-              foregroundColor: const Color(0xFF0A1628), // Dark text on cyan
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.backgroundMid,
               textStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
           ),

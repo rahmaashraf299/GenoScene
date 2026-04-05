@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import '../config/api_config.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dna_loading_overlay.dart';
@@ -22,11 +23,24 @@ class _AnalysisUploadScreenState extends State<AnalysisUploadScreen> {
   PlatformFile? _pickedFile;
   bool _isAnalyzing = false;
 
+  String _getFileExtension() {
+    if (_fileName == null) return '';
+    final parts = _fileName!.split('.');
+    return parts.length > 1 ? parts.last.toUpperCase() : '';
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   // ─── Logic unchanged ───────────────────────────────────────────────────────
   Future<void> _pickFile() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     if (userProvider.isGuest) {
-      _showError("Guest users cannot upload DNA data. Please Register to use this feature.");
+      _showError(
+          "Guest users cannot upload DNA data. Please Register to use this feature.");
       return;
     }
 
@@ -47,129 +61,124 @@ class _AnalysisUploadScreenState extends State<AnalysisUploadScreen> {
     }
   }
 
-//static const String _analysisUrl = "http://10.0.2.2:8080/analyze";
-  // تغيير العنوان ليتوافق مع الباك-إند (Port 8000) ومع الكروم (localhost)
-static const String _analysisUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev/api/analyze/";
+  static final String _analysisUrl =
+      "${ApiConfig.apiUrl}${ApiConfig.analyzeEndpoint}";
 
-Future<void> _uploadAndAnalyze() async {
-  if (_pickedFile == null) return;
-  setState(() => _isAnalyzing = true);
+  Future<void> _uploadAndAnalyze() async {
+    if (_pickedFile == null) return;
+    setState(() => _isAnalyzing = true);
 
-  DnaLoadingOverlay.show(
-    context,
-    message: "Analyzing DNA Sequence...",
-    subMessage: "Running AI Models",
-  );
+    DnaLoadingOverlay.show(
+      context,
+      message: "Analyzing DNA Sequence...",
+      subMessage: "Running AI Models",
+    );
 
-  try {
-    final token = await AuthService.getToken();
-    final request = http.MultipartRequest('POST', Uri.parse(_analysisUrl));
-    
-    request.headers.addAll({
-      "Authorization": "Bearer $token",
-      "ngrok-skip-browser-warning": "69420",
-      "Accept": "application/json",
-    });
+    try {
+      final token = await AuthService.getToken();
+      final request = http.MultipartRequest('POST', Uri.parse(_analysisUrl));
 
-    request.fields['sample_name'] = _fileName ?? _pickedFile!.name;
+      request.headers.addAll(ApiConfig.authMultipartHeaders(token!));
 
-    if (_pickedFile!.bytes != null) {
-      request.files.add(http.MultipartFile.fromBytes(
-        'file', _pickedFile!.bytes!,
-        filename: _fileName ?? 'upload.csv',
-      ));
-    }
+      request.fields['sample_name'] = _fileName ?? _pickedFile!.name;
 
-    final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
-    final response = await http.Response.fromStream(streamedResponse);
+      if (_pickedFile!.bytes != null) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'file',
+          _pickedFile!.bytes!,
+          filename: _fileName ?? 'upload.csv',
+        ));
+      }
 
-    if (mounted) DnaLoadingOverlay.hide(context);
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final Map<String, dynamic> body = jsonDecode(response.body);
+      if (mounted) DnaLoadingOverlay.hide(context);
 
-      // طباعة الـ response كامل عشان نعرف شكل الـ JSON
-      print("=== ANALYZE RESPONSE ===");
-      print("Full body keys: ${body.keys.toList()}");
-      print("analysis_id: ${body['analysis_id']}");
-      print("id: ${body['id']}");
-      print("Full body: ${response.body}");
-      print("========================");
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
 
-      // --- التعديل الجوهري لقراءة القائمة ---
-      if (body['results'] != null && (body['results'] as List).isNotEmpty) {
-        // السيرفر بيبعت لستة، إحنا محتاجين أول عنصر فيها
-        final firstResult = body['results'][0];
+        // --- التعديل الجوهري لقراءة القائمة ---
+        if (body['results'] != null && (body['results'] as List).isNotEmpty) {
+          // السيرفر بيبعت لستة، إحنا محتاجين أول عنصر فيها
+          final firstResult = body['results'][0];
 
-        Map<String, double> parseSafe(dynamic data) {
-          if (data == null || data is! Map) return {};
-          return data.map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
-        }
-
-        final eyeData = parseSafe(firstResult['eye']);
-        final hairData = parseSafe(firstResult['hair']);
-        final skinData = parseSafe(firstResult['skin']);
-
-        // استخراج الـ ID من أي مكان ممكن في الـ response
-        String? extractedId = (body['analysis_id'] ?? body['id'] ?? firstResult['id'] ?? firstResult['analysis_id'])?.toString();
-
-        if (mounted) {
-          final userProvider = Provider.of<UserProvider>(context, listen: false);
-
-          // لو الـ analyze response مرجعش id، نجيبه من الـ history (أحدث تقرير)
-          if (extractedId == null || extractedId.isEmpty) {
-            await userProvider.loadReports();
-            if (userProvider.reports.isNotEmpty) {
-              // أحدث تقرير هو اللي اترفع دلوقتي
-              extractedId = userProvider.reports.first.id;
-              print("ID fetched from history: $extractedId");
-            }
+          Map<String, double> parseSafe(dynamic data) {
+            if (data == null || data is! Map) return {};
+            return data
+                .map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
           }
 
-          extractedId ??= "RPT-${DateTime.now().millisecondsSinceEpoch}";
-          print("Final Extracted ID: $extractedId");
+          final eyeData = parseSafe(firstResult['eye']);
+          final hairData = parseSafe(firstResult['hair']);
+          final skinData = parseSafe(firstResult['skin']);
 
-          final newReport = ReportItem(
-            id: extractedId,
-            sampleName: _fileName ?? "Unknown Sample",
-            date: DateTime.now(),
-            status: "Completed",
-            hairResults: hairData,
-            eyeResults: eyeData,
-            skinResults: skinData,
-          );
+          // استخراج الـ ID من أي مكان ممكن في الـ response
+          String? extractedId = (body['analysis_id'] ??
+                  body['id'] ??
+                  firstResult['id'] ??
+                  firstResult['analysis_id'])
+              ?.toString();
 
-          userProvider.addReport(newReport);
-          // حفظ الاسم المعدل محليًا عشان loadReports ما يمسحوش
-          await userProvider.saveFileNameLocally(newReport.id, newReport.sampleName);
-          await userProvider.loadReports();
+          if (mounted) {
+            final userProvider =
+                Provider.of<UserProvider>(context, listen: false);
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AnalysisResultScreen(
-                hairResults: hairData,
-                eyeResults: eyeData,
-                skinResults: skinData,
-                analysisId: extractedId,
+            // لو الـ analyze response مرجعش id، نجيبه من الـ history (أحدث تقرير)
+            if (extractedId == null || extractedId.isEmpty) {
+              await userProvider.loadReports();
+              if (userProvider.reports.isNotEmpty) {
+                // أحدث تقرير هو اللي اترفع دلوقتي
+                extractedId = userProvider.reports.first.id;
+              }
+            }
+
+            extractedId ??= "RPT-${DateTime.now().millisecondsSinceEpoch}";
+
+            final newReport = ReportItem(
+              id: extractedId,
+              sampleName: _fileName ?? "Unknown Sample",
+              date: DateTime.now(),
+              status: "Completed",
+              hairResults: hairData,
+              eyeResults: eyeData,
+              skinResults: skinData,
+            );
+
+            userProvider.addReport(newReport);
+            // حفظ الاسم المعدل محليًا عشان loadReports ما يمسحوش
+            await userProvider.saveFileNameLocally(
+                newReport.id, newReport.sampleName);
+            await userProvider.loadReports();
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AnalysisResultScreen(
+                  hairResults: hairData,
+                  eyeResults: eyeData,
+                  skinResults: skinData,
+                  analysisId: extractedId,
+                ),
               ),
-            ),
-          );
+            );
+          }
+        } else {
+          _showError("No analysis results found in the server response.");
         }
       } else {
-        _showError("No analysis results found in the server response.");
+        _showError("Server Error: ${response.statusCode}");
       }
-    } else {
-      _showError("Server Error: ${response.statusCode}");
+    } catch (e) {
+      if (mounted) DnaLoadingOverlay.hide(context);
+      debugPrint("Analysis error: $e");
+      _showError("Error processing results. Please check the log.");
+    } finally {
+      if (mounted) setState(() => _isAnalyzing = false);
     }
-  } catch (e) {
-    if (mounted) DnaLoadingOverlay.hide(context);
-    print("UI ERROR: $e"); // عشان نعرف لو فيه مشكلة في تحويل البيانات
-    _showError("Error processing results. Please check the log.");
-  } finally {
-    if (mounted) setState(() => _isAnalyzing = false);
   }
-}
+
   // ── Genomic Stats (Migrated from Home) ──
   Widget _buildGenomicStats() {
     final stats = [
@@ -305,7 +314,6 @@ Future<void> _uploadAndAnalyze() async {
     );
   }
 
-
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -323,7 +331,8 @@ Future<void> _uploadAndAnalyze() async {
   // ──────────────────────────────────────────────────────────────────────────
 
   void _showSampleIdentityModal() {
-    final TextEditingController nameController = TextEditingController(text: _fileName);
+    final TextEditingController nameController =
+        TextEditingController(text: _fileName);
 
     showDialog(
       context: context,
@@ -338,7 +347,8 @@ Future<void> _uploadAndAnalyze() async {
             decoration: BoxDecoration(
               color: AppColors.backgroundMid,
               borderRadius: BorderRadius.circular(AppRadius.xxl),
-              border: Border.all(color: AppColors.surfaceBorderAccent, width: 1.5),
+              border:
+                  Border.all(color: AppColors.surfaceBorderAccent, width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withAlpha(20),
@@ -358,9 +368,11 @@ Future<void> _uploadAndAnalyze() async {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated,
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary.withAlpha(80), width: 1),
+                    border: Border.all(
+                        color: AppColors.primary.withAlpha(80), width: 1),
                   ),
-                  child: const Icon(Icons.edit_rounded, size: 28, color: AppColors.primary),
+                  child: const Icon(Icons.edit_rounded,
+                      size: 28, color: AppColors.primary),
                 ),
                 AppSpacing.vLg,
                 // Title
@@ -386,20 +398,25 @@ Future<void> _uploadAndAnalyze() async {
                     fillColor: AppColors.surfaceElevated,
                     prefixIcon: const Padding(
                       padding: EdgeInsets.only(left: 16, right: 12),
-                      child: Icon(Icons.label_outline_rounded, color: AppColors.primary, size: 24),
+                      child: Icon(Icons.label_outline_rounded,
+                          color: AppColors.primary, size: 24),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 20, horizontal: 16),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.xxl),
-                      borderSide: BorderSide(color: AppColors.primary.withAlpha(80)),
+                      borderSide:
+                          BorderSide(color: AppColors.primary.withAlpha(80)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.xxl),
-                      borderSide: BorderSide(color: AppColors.primary.withAlpha(80)),
+                      borderSide:
+                          BorderSide(color: AppColors.primary.withAlpha(80)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.xxl),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
                 ),
@@ -413,12 +430,15 @@ Future<void> _uploadAndAnalyze() async {
                         Navigator.pop(ctx);
                       },
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: AppRadius.button),
                       ),
                       child: Text(
                         "Use Filename",
-                        style: AppTypography.titleSmall.copyWith(color: AppColors.textSecondary),
+                        style: AppTypography.titleSmall
+                            .copyWith(color: AppColors.textSecondary),
                       ),
                     ),
                     Container(
@@ -437,8 +457,10 @@ Future<void> _uploadAndAnalyze() async {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 28, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(100)),
                         ),
                         onPressed: () {
                           if (nameController.text.trim().isNotEmpty) {
@@ -450,7 +472,8 @@ Future<void> _uploadAndAnalyze() async {
                         },
                         child: Text(
                           "Save & Continue",
-                          style: AppTypography.titleSmall.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: AppTypography.titleSmall.copyWith(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
@@ -461,6 +484,182 @@ Future<void> _uploadAndAnalyze() async {
           ),
         );
       },
+    );
+  }
+
+  void _showFilePreview() {
+    if (_pickedFile?.bytes == null) return;
+
+    String content;
+    try {
+      content = utf8.decode(_pickedFile!.bytes!);
+    } catch (_) {
+      content = 'Unable to decode file content.';
+    }
+
+    final lines = content.split('\n');
+    final totalLines = lines.length;
+    final previewCount = totalLines > 50 ? 50 : totalLines;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.95,
+        minChildSize: 0.4,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: AppColors.backgroundMid,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+            border: Border.all(color: AppColors.surfaceBorderAccent, width: 1),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textTertiary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.base),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryMuted,
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
+                      ),
+                      child: Text(
+                        _getFileExtension(),
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    AppSpacing.hMd,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _fileName!,
+                            style: AppTypography.titleSmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$totalLines lines · ${_formatFileSize(_pickedFile!.size)}',
+                            style: AppTypography.bodySmall
+                                .copyWith(color: AppColors.textTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close_rounded,
+                          color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: AppColors.surfaceBorder, height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.all(AppSpacing.base),
+                  itemCount: previewCount,
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          child: Text(
+                            '${i + 1}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textDisabled,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            lines[i],
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                              fontFamily: 'monospace',
+                              height: 1.6,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (totalLines > 50)
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                        top: BorderSide(color: AppColors.surfaceBorder)),
+                  ),
+                  child: Text(
+                    'Showing first 50 of $totalLines lines',
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.textTertiary),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fileActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withAlpha(20),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: color.withAlpha(50)),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textTertiary,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -576,7 +775,8 @@ Future<void> _uploadAndAnalyze() async {
         const SizedBox(height: 24),
         Text(
           "Analysis Parameters",
-          style: AppTypography.sectionHeader.copyWith(color: AppColors.textSecondary),
+          style: AppTypography.sectionHeader
+              .copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 16),
         _buildGenomicStats(),
@@ -620,54 +820,118 @@ Future<void> _uploadAndAnalyze() async {
               mainAxisAlignment: MainAxisAlignment.center,
               children: hasFile
                   ? [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withAlpha(30),
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                        child: const Icon(Icons.description_outlined,
-                            size: 40, color: AppColors.primary),
-                      ),
-                      AppSpacing.vBase,
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      // File icon with extension badge and success check
+                      Stack(
+                        alignment: Alignment.bottomRight,
                         children: [
-                          Flexible(
-                            child: Text(
-                              _fileName!,
-                              style: AppTypography.titleSmall,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary.withAlpha(30),
+                                  AppColors.secondary.withAlpha(20),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.lg),
+                              border: Border.all(
+                                  color: AppColors.primary.withAlpha(60)),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.description_outlined,
+                                    size: 26, color: AppColors.primary),
+                                const SizedBox(height: 2),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withAlpha(40),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    _getFileExtension(),
+                                    style: AppTypography.badge.copyWith(
+                                      color: AppColors.primary,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_rounded, color: AppColors.primary, size: 20),
-                            onPressed: _showSampleIdentityModal,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: AppColors.success,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: AppColors.backgroundMid, width: 2),
+                            ),
+                            child: const Icon(Icons.check,
+                                color: Colors.white, size: 10),
                           ),
                         ],
                       ),
-                      AppSpacing.vSm,
-                      Text('Tap to change file',
-                          style: AppTypography.labelSmall
-                              .copyWith(color: AppColors.primary)),
-                      AppSpacing.vSm,
-                      TextButton.icon(
-                        onPressed: () => setState(() {
-                          _fileName = null;
-                          _pickedFile = null;
-                        }),
-                        icon: const Icon(Icons.close_rounded,
-                            size: 16, color: AppColors.error),
-                        label: Text('Remove',
-                            style: AppTypography.labelSmall
-                                .copyWith(color: AppColors.error)),
-                        style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6)),
+                      AppSpacing.vBase,
+                      // Filename
+                      Text(
+                        _fileName!,
+                        style: AppTypography.titleSmall,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_pickedFile != null) ...[
+                        AppSpacing.vXs,
+                        Text(
+                          _formatFileSize(_pickedFile!.size),
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.textTertiary),
+                        ),
+                      ],
+                      AppSpacing.vBase,
+                      // Action buttons row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _fileActionButton(
+                            icon: Icons.visibility_outlined,
+                            label: 'Preview',
+                            onTap: _showFilePreview,
+                            color: AppColors.primary,
+                          ),
+                          AppSpacing.hMd,
+                          _fileActionButton(
+                            icon: Icons.edit_outlined,
+                            label: 'Rename',
+                            onTap: _showSampleIdentityModal,
+                            color: AppColors.secondary,
+                          ),
+                          AppSpacing.hMd,
+                          _fileActionButton(
+                            icon: Icons.swap_horiz_rounded,
+                            label: 'Replace',
+                            onTap: _pickFile,
+                            color: AppColors.info,
+                          ),
+                          AppSpacing.hMd,
+                          _fileActionButton(
+                            icon: Icons.delete_outline_rounded,
+                            label: 'Remove',
+                            onTap: () => setState(() {
+                              _fileName = null;
+                              _pickedFile = null;
+                            }),
+                            color: AppColors.error,
+                          ),
+                        ],
                       ),
                     ]
                   : [

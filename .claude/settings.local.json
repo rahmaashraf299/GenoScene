@@ -12,7 +12,16 @@
       "Bash(chmod:*)",
       "Bash(head:*)",
       "Bash(dart format:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(flutter pub:*)",
+      "Read(//d/work/.test/finaldna \\(6\\)/dna/$USERPROFILE/AppData/Local/Pub/Cache/**)",
+      "Read(//d/work/.test/finaldna \\(6\\)/dna/$USERPROFILE/.pub-cache/**)",
+      "Bash(dart pub:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
     ]
   }
 }

@@ -5,7 +5,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
+import '../config/api_config.dart';
 import '../theme/app_theme.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -39,9 +42,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _newPasswordVisible = false;
   bool _confirmPasswordVisible = false;
 
-  // ─── API logic unchanged ───────────────────────────────────────────────────
-  final String baseUrl =
-      "https://naida-pterodactylous-chillingly.ngrok-free.dev/api";
+  // ─── API logic ───────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -78,13 +79,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final token = await AuthService.getToken();
     if (token == null) return;
 
-    var uri = Uri.parse("$baseUrl/me/");
+    var uri = Uri.parse("${ApiConfig.apiUrl}${ApiConfig.profileEndpoint}");
     var request = http.MultipartRequest('PUT', uri);
 
-    request.headers.addAll({
-      "Authorization": "Bearer $token",
-      "ngrok-skip-browser-warning": "69420",
-    });
+    request.headers.addAll(ApiConfig.authMultipartHeaders(token));
 
     request.fields['username'] = _usernameController.text.trim();
     request.fields['email'] = _emailController.text.trim();
@@ -113,8 +111,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           if (newPicUrl.startsWith('http') && !newPicUrl.contains('/media/')) {
             newPicUrl = newPicUrl.replaceFirst('/profile_pics/', '/media/profile_pics/');
           } else if (!newPicUrl.startsWith('http')) {
-            final cleanPath = newPicUrl.startsWith('/') ? newPicUrl.substring(1) : newPicUrl;
-            newPicUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev/media/$cleanPath";
+            newPicUrl = ApiConfig.mediaUrl(newPicUrl);
           }
           newPicUrl =
               "$newPicUrl?v=${DateTime.now().millisecondsSinceEpoch}";
@@ -126,6 +123,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
 
         if (mounted) {
+          // Re-fetch profile from API so provider gets the new picture URL
+          await Provider.of<UserProvider>(context, listen: false)
+              .fetchUserProfile();
           _showSuccess("Profile Updated Successfully!");
           Navigator.pop(context, true);
         }
@@ -139,15 +139,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _changePassword() async {
     final token = await AuthService.getToken();
-    var url = Uri.parse("$baseUrl/me/change-password/");
+    var url = Uri.parse("${ApiConfig.apiUrl}${ApiConfig.changePasswordEndpoint}");
     try {
       final response = await http.post(
         url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-          "ngrok-skip-browser-warning": "69420"
-        },
+        headers: ApiConfig.authHeaders(token!),
         body: jsonEncode({
           "old_password": _oldPasswordController.text,
           "new_password": _newPasswordController.text,
@@ -314,7 +310,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       imageProvider = FileImage(_image!);
     } else if (widget.currentProfilePic != null) {
       imageProvider = NetworkImage(
-          "${widget.currentProfilePic}?v=${DateTime.now().millisecondsSinceEpoch}");
+          "${widget.currentProfilePic}?v=${DateTime.now().millisecondsSinceEpoch}",
+          headers: ApiConfig.ngrokHeaders);
     } else {
       imageProvider =
           const AssetImage('assets/images/genoscene_logo.png');
