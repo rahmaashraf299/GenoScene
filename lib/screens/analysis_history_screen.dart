@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/shimmer_skeleton.dart';
 import '../models/report_item.dart';
 import 'analysis_result_screen.dart';
 
@@ -14,13 +15,57 @@ class AnalysisHistoryScreen extends StatefulWidget {
 }
 
 class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _statusFilter = 'All';
+  String _sortMode = 'Newest';
+
   @override
   void initState() {
     super.initState();
-    // استدعاء البيانات من الباك-إند فور فتح الشاشة
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<UserProvider>(context, listen: false).loadReports();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<ReportItem> _applyFilters(List<ReportItem> reports) {
+    var filtered = reports.toList();
+
+    // Search
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      filtered = filtered.where((r) {
+        final name = (r.sampleName ?? '').toLowerCase();
+        final id = r.id.toString();
+        return name.contains(q) || id.contains(q);
+      }).toList();
+    }
+
+    // Status filter
+    if (_statusFilter != 'All') {
+      filtered = filtered.where((r) => r.status == _statusFilter).toList();
+    }
+
+    // Sort
+    switch (_sortMode) {
+      case 'Oldest':
+        filtered.sort((a, b) => a.date.compareTo(b.date));
+        break;
+      case 'Name A-Z':
+        filtered.sort((a, b) =>
+            (a.sampleName ?? '').compareTo(b.sampleName ?? ''));
+        break;
+      default: // Newest
+        filtered.sort((a, b) => b.date.compareTo(a.date));
+    }
+
+    return filtered;
   }
 
   @override
@@ -129,41 +174,184 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         child: SafeArea(
           child: Consumer<UserProvider>(
             builder: (context, userProvider, child) {
-              // حالة التحميل (Loading)
               if (userProvider.isReportsLoading && userProvider.reports.isEmpty) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                );
+                return const HistoryListShimmer();
               }
 
               final reports = userProvider.reports;
 
-              // حالة عدم وجود بيانات (Empty State)
               if (reports.isEmpty) {
                 return _buildEmptyState();
               }
 
-              return RefreshIndicator(
-                onRefresh: () => userProvider.loadReports(),
-                color: AppColors.primary,
-                backgroundColor: AppColors.surfaceCard,
-                child: ListView.builder(
-                  physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics()),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.base),
-                  itemCount: reports.length,
-                  itemBuilder: (context, index) {
-                    return AnimatedEntrance(
-                      delay: Duration(milliseconds: index * 60),
-                      child: _HistoryReportCard(report: reports[index]),
-                    );
-                  },
-                ),
+              final filtered = _applyFilters(reports);
+
+              return Column(
+                children: [
+                  // Search bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                      style: AppTypography.bodyMedium,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or ID...',
+                        hintStyle: AppTypography.bodyMedium
+                            .copyWith(color: AppColors.textHint),
+                        prefixIcon: const Icon(Icons.search_rounded,
+                            color: AppColors.textDisabled, size: 20),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded,
+                                    color: AppColors.textDisabled, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: AppColors.surfaceCard,
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: AppSpacing.base),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: const BorderSide(
+                              color: AppColors.surfaceBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: const BorderSide(
+                              color: AppColors.primary, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Filter chips + sort
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: ['All', 'Completed', 'Processing', 'Failed']
+                                  .map((status) => Padding(
+                                        padding: const EdgeInsets.only(
+                                            right: AppSpacing.sm),
+                                        child: ChoiceChip(
+                                          label: Text(status,
+                                              style: AppTypography.labelSmall
+                                                  .copyWith(
+                                                color: _statusFilter == status
+                                                    ? AppColors.background
+                                                    : AppColors.textSecondary,
+                                                fontWeight:
+                                                    _statusFilter == status
+                                                        ? FontWeight.w700
+                                                        : FontWeight.w500,
+                                              )),
+                                          selected: _statusFilter == status,
+                                          selectedColor: AppColors.primary,
+                                          backgroundColor:
+                                              AppColors.surfaceCard,
+                                          side: BorderSide(
+                                            color: _statusFilter == status
+                                                ? AppColors.primary
+                                                : AppColors.surfaceBorder,
+                                          ),
+                                          onSelected: (_) => setState(
+                                              () => _statusFilter = status),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ))
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.sort_rounded,
+                              color: AppColors.textSecondary, size: 20),
+                          color: AppColors.surfaceElevated,
+                          onSelected: (v) => setState(() => _sortMode = v),
+                          itemBuilder: (_) => [
+                            _sortItem('Newest', Icons.arrow_downward_rounded),
+                            _sortItem('Oldest', Icons.arrow_upward_rounded),
+                            _sortItem('Name A-Z', Icons.sort_by_alpha_rounded),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.sm),
+
+                  // List
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No results match your filters',
+                              style: AppTypography.bodyMedium
+                                  .copyWith(color: AppColors.textTertiary),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: () => userProvider.loadReports(),
+                            color: AppColors.primary,
+                            backgroundColor: AppColors.surfaceCard,
+                            child: ListView.builder(
+                              physics: const BouncingScrollPhysics(
+                                  parent: AlwaysScrollableScrollPhysics()),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.lg,
+                                  vertical: AppSpacing.sm),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                return AnimatedEntrance(
+                                  delay: Duration(
+                                      milliseconds: index * 60),
+                                  child: _HistoryReportCard(
+                                      report: filtered[index]),
+                                );
+                              },
+                            ),
+                          ),
+                  ),
+                ],
               );
             },
           ),
         ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _sortItem(String label, IconData icon) {
+    return PopupMenuItem(
+      value: label,
+      child: Row(
+        children: [
+          Icon(icon, size: 16,
+              color: _sortMode == label
+                  ? AppColors.primary
+                  : AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Text(label,
+              style: AppTypography.bodyMedium.copyWith(
+                  color: _sortMode == label
+                      ? AppColors.primary
+                      : AppColors.textPrimary)),
+        ],
       ),
     );
   }

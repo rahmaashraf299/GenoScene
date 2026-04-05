@@ -10,6 +10,8 @@ import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
+import '../config/api_config.dart';
+import '../services/pdf_export_service.dart';
 import '../theme/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../models/report_item.dart';
@@ -113,6 +115,32 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
     }
   }
 
+  double _calculateEntropy(Map<String, double> data) {
+    if (data.isEmpty) return 0.0;
+    final total = data.values.fold<double>(0, (a, b) => a + b);
+    if (total == 0) return 0.0;
+    double entropy = 0.0;
+    for (final v in data.values) {
+      final p = v / total;
+      if (p > 0) entropy -= p * (log(p) / log(data.length));
+    }
+    return entropy.clamp(0.0, 1.0);
+  }
+
+  String _confidenceLabel(double entropy) {
+    if (entropy < 0.3) return 'Very High';
+    if (entropy < 0.5) return 'High';
+    if (entropy < 0.7) return 'Moderate';
+    return 'Low';
+  }
+
+  Color _confidenceColor(double entropy) {
+    if (entropy < 0.3) return AppColors.success;
+    if (entropy < 0.5) return AppColors.info;
+    if (entropy < 0.7) return AppColors.warning;
+    return AppColors.error;
+  }
+
   Future<void> _startFaceGeneration() async {
     if (widget.analysisId == null) return;
 
@@ -209,6 +237,160 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
     );
   }
 
+  void _showFullFaceFromUrl(String imageUrl) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black87,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              body: Stack(
+                children: [
+                  // Image with interactive viewer
+                  Center(
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Hero(
+                        tag: 'face_image_hero',
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          headers: ApiConfig.ngrokHeaders,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Top bar
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.base,
+                            vertical: AppSpacing.sm),
+                        child: Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () => Navigator.pop(context),
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(20),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded,
+                                    color: Colors.white, size: 22),
+                              ),
+                            ),
+                            const Spacer(),
+                            Text("AI Portrait",
+                                style: AppTypography.titleSmall
+                                    .copyWith(color: Colors.white)),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () => _savePortrait(imageUrl),
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(20),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.download_rounded,
+                                    color: Colors.white, size: 22),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Bottom actions
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withAlpha(200),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _fullScreenAction(
+                              icon: Icons.share_outlined,
+                              label: 'Share',
+                              onTap: () => _sharePortrait(imageUrl),
+                            ),
+                            const SizedBox(width: 32),
+                            _fullScreenAction(
+                              icon: Icons.download_rounded,
+                              label: 'Save',
+                              onTap: () => _savePortrait(imageUrl),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
+      ),
+    );
+  }
+
+  Widget _fullScreenAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(20),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withAlpha(40)),
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: Colors.white.withAlpha(200),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final topHair = _getTopTrait(widget.hairResults);
@@ -244,15 +426,18 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
                       children: [
                         Expanded(
                             child: _buildSummaryCard("Hair", topHair.key,
-                                topHair.value, AppColors.info.withAlpha(180))),
+                                topHair.value, AppColors.info.withAlpha(180),
+                                data: widget.hairResults)),
                         AppSpacing.hSm,
                         Expanded(
                             child: _buildSummaryCard("Eyes", topEye.key,
-                                topEye.value, AppColors.primary)),
+                                topEye.value, AppColors.primary,
+                                data: widget.eyeResults)),
                         AppSpacing.hSm,
                         Expanded(
                             child: _buildSummaryCard("Skin", topSkin.key,
-                                topSkin.value, AppColors.warning)),
+                                topSkin.value, AppColors.warning,
+                                data: widget.skinResults)),
                       ],
                     ),
                   ),
@@ -398,6 +583,54 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
         ),
         Semantics(
           button: true,
+          label: 'Export PDF',
+          child: GestureDetector(
+            onTap: () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Generating PDF report...'),
+                  backgroundColor: AppColors.info,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md)),
+                ),
+              );
+              final success = await PdfExportService.exportReport(
+                context: context,
+                hairResults: widget.hairResults,
+                eyeResults: widget.eyeResults,
+                skinResults: widget.skinResults,
+                analysisId: widget.analysisId,
+              );
+              if (!success && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Failed to generate PDF report'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md)),
+                  ),
+                );
+              }
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: const Icon(Icons.picture_as_pdf_outlined,
+                  color: AppColors.primary, size: 18),
+            ),
+          ),
+        ),
+        AppSpacing.hSm,
+        Semantics(
+          button: true,
           label: 'Share results',
           child: Container(
             width: 40,
@@ -416,7 +649,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
   }
 
   Widget _buildSummaryCard(
-      String title, String trait, double probability, Color color) {
+      String title, String trait, double probability, Color color,
+      {Map<String, double>? data}) {
     IconData icon;
     switch (title) {
       case "Hair":
@@ -501,6 +735,31 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
             style: AppTypography.labelSmall.copyWith(
                 color: color, fontWeight: FontWeight.w800, fontSize: 11),
           ),
+          if (data != null && data.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Builder(builder: (_) {
+              final entropy = _calculateEntropy(data);
+              final confColor = _confidenceColor(entropy);
+              final confLabel = _confidenceLabel(entropy);
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: confColor.withAlpha(25),
+                  borderRadius: BorderRadius.circular(AppRadius.xs),
+                  border: Border.all(color: confColor.withAlpha(60)),
+                ),
+                child: Text(
+                  confLabel,
+                  style: AppTypography.caption.copyWith(
+                    color: confColor,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
@@ -754,85 +1013,308 @@ Widget _buildFaceGeneratorCard() {
   }
 
   Widget _buildGeneratedFaceViewLive(String imageUrl, String prompt) {
+    final topHair = _getTopTrait(widget.hairResults);
+    final topEye = _getTopTrait(widget.eyeResults);
+    final topSkin = _getTopTrait(widget.skinResults);
+
     return Container(
-      decoration: AppColors.glassCard(
-        borderColor: AppColors.primary.withAlpha(80),
-        radius: AppRadius.xl,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.primary.withAlpha(60), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withAlpha(25),
+            blurRadius: 30,
+            spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: AppColors.secondary.withAlpha(15),
+            blurRadius: 40,
+            spreadRadius: 4,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
-      child: Column(
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-                child: Image.network(
-                  imageUrl,
-                  height: 350, // زودت الطول شوية عشان الصورة تبان أوضح
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  // الهيدرز دي أهم حاجة عشان الـ Ngrok يرضى يعرض الصورة على الويب
-                  headers: const {
-                    "ngrok-skip-browser-warning": "69420",
-                  },
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return _buildLoadingViewShimmer();
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    print("Image Load Error: $error");
-                    return Container(
-                      height: 300,
-                      color: AppColors.surfaceCard,
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        child: Column(
+          children: [
+            // Image section
+            GestureDetector(
+              onTap: () => _showFullFaceFromUrl(imageUrl),
+              child: Stack(
+                children: [
+                  // Main image
+                  Hero(
+                    tag: 'face_image_hero',
+                    child: Image.network(
+                      imageUrl,
+                      height: 380,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      headers: ApiConfig.ngrokHeaders,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return _buildLoadingViewShimmer();
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint("Image Load Error: $error");
+                        return Container(
+                          height: 300,
+                          decoration: const BoxDecoration(
+                            color: AppColors.surfaceCard,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.errorMuted,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: AppColors.error.withAlpha(60)),
+                                ),
+                                child: const Icon(Icons.broken_image_outlined,
+                                    size: 36, color: AppColors.error),
+                              ),
+                              AppSpacing.vBase,
+                              Text("Failed to load AI Portrait",
+                                  style: AppTypography.titleSmall
+                                      .copyWith(color: AppColors.error)),
+                              AppSpacing.vXs,
+                              Text("Tap to retry",
+                                  style: AppTypography.bodySmall
+                                      .copyWith(color: AppColors.textTertiary)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  // Bottom gradient overlay
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            AppColors.backgroundMid.withAlpha(230),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // "AI Generated" badge top-left
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(140),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border:
+                            Border.all(color: AppColors.primary.withAlpha(80)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.broken_image, size: 50, color: AppColors.error),
-                          SizedBox(height: 10),
-                          Text("Failed to load AI Portrait"),
+                          const Icon(Icons.auto_awesome,
+                              color: AppColors.primary, size: 12),
+                          const SizedBox(width: 5),
+                          Text(
+                            "AI Generated",
+                            style: AppTypography.labelSmall.copyWith(
+                              color: AppColors.primaryLight,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
+                          ),
                         ],
                       ),
-                    );
-                  },
-                ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Row(
-                  children: [
-                    _actionBtn(Icons.share_outlined, () => _sharePortrait(imageUrl)),
-                    AppSpacing.hSm,
-                    _actionBtn(Icons.download_rounded, () => _savePortrait(imageUrl)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.base),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 16),
-                    AppSpacing.hSm,
-                    Text("AI Insights", style: AppTypography.titleSmall),
-                  ],
-                ),
-                AppSpacing.vXs,
-                Text(
-                  prompt,
-                  textAlign: TextAlign.center,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textTertiary,
-                    height: 1.5,
+                    ),
                   ),
-                ),
-              ],
+                  // Action buttons top-right
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Row(
+                      children: [
+                        _actionBtn(Icons.open_in_full_rounded,
+                            () => _showFullFaceFromUrl(imageUrl)),
+                        const SizedBox(width: 8),
+                        _actionBtn(Icons.share_outlined,
+                            () => _sharePortrait(imageUrl)),
+                        const SizedBox(width: 8),
+                        _actionBtn(Icons.download_rounded,
+                            () => _savePortrait(imageUrl)),
+                      ],
+                    ),
+                  ),
+                  // "Tap to expand" hint at bottom center
+                  Positioned(
+                    bottom: 12,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(100),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.zoom_in_rounded,
+                                color: Colors.white70, size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              "Tap to expand",
+                              style: AppTypography.bodySmall.copyWith(
+                                color: Colors.white70,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Bottom info section
+            Container(
+              color: AppColors.surfaceCard,
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.base, AppSpacing.base, AppSpacing.base, AppSpacing.md),
+              child: Column(
+                children: [
+                  // Trait chips row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _resultTraitChip(Icons.content_cut_outlined,
+                          topHair.key, AppColors.info.withAlpha(180)),
+                      const SizedBox(width: 8),
+                      _resultTraitChip(Icons.visibility_outlined,
+                          topEye.key, AppColors.primary),
+                      const SizedBox(width: 8),
+                      _resultTraitChip(Icons.palette_outlined,
+                          topSkin.key, AppColors.warning),
+                    ],
+                  ),
+                  AppSpacing.vMd,
+                  // Divider
+                  Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          AppColors.surfaceBorder,
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                  AppSpacing.vMd,
+                  // AI insights
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryMuted,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.xs),
+                        ),
+                        child: const Icon(Icons.auto_awesome,
+                            color: AppColors.secondary, size: 12),
+                      ),
+                      const SizedBox(width: 8),
+                      Text("AI Insights",
+                          style: AppTypography.titleSmall
+                              .copyWith(fontSize: 13)),
+                    ],
+                  ),
+                  AppSpacing.vXs,
+                  Text(
+                    prompt,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textTertiary,
+                      height: 1.5,
+                    ),
+                  ),
+                  AppSpacing.vBase,
+                  // Regenerate button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _startFaceGeneration,
+                      icon: const Icon(Icons.refresh_rounded,
+                          size: 16, color: AppColors.primary),
+                      label: Text(
+                        "Regenerate Portrait",
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                            color: AppColors.primary.withAlpha(80)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.md)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.md),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _resultTraitChip(IconData icon, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: color.withAlpha(45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
+          Text(
+            value,
+            style: AppTypography.labelSmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
             ),
           ),
         ],

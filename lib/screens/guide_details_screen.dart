@@ -65,11 +65,7 @@ class GuideDetailsScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: AppSpacing.cardLarge,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1A3A5C), Color(0xFF0F2440)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: AppColors.elevatedCardGradient,
                       borderRadius: AppRadius.card,
                       border:
                           Border.all(color: AppColors.surfaceBorderAccent),

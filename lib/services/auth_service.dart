@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class AuthService {
   static const String _tokenKey = 'auth_token';
@@ -38,17 +39,10 @@ class AuthService {
     final token = await getToken();
     if (token == null) return null;
 
-    final String baseUrl =
-        "https://naida-pterodactylous-chillingly.ngrok-free.dev/api";
-
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/me/"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "69420",
-        },
+        Uri.parse("${ApiConfig.apiUrl}${ApiConfig.profileEndpoint}"),
+        headers: ApiConfig.authHeaders(token),
       );
 
       if (response.statusCode == 200) {

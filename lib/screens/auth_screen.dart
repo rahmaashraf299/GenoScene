@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import '../config/api_config.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/dna_loading_overlay.dart';
@@ -65,11 +67,50 @@ class _AuthScreenState extends State<AuthScreen>
     super.dispose();
   }
 
-  // ─── API logic unchanged ───────────────────────────────────────────────────
+  // ─── Validation ──────────────────────────────────────────────────────────
+  String? _validate() {
+    if (_usernameController.text.trim().isEmpty) return 'Username is required';
+    if (_passwordController.text.isEmpty) return 'Password is required';
+
+    if (!isLogin) {
+      final email = _emailController.text.trim();
+      if (email.isEmpty) return 'Email is required';
+      if (!RegExp(r'^[\w\-.]+@[\w\-.]+\.\w{2,}$').hasMatch(email)) {
+        return 'Please enter a valid email address';
+      }
+      if (_passwordController.text.length < 8) {
+        return 'Password must be at least 8 characters';
+      }
+      if (_passwordController.text != _confirmPasswordController.text) {
+        return 'Passwords do not match';
+      }
+    }
+    return null;
+  }
+
+  int _passwordStrength(String password) {
+    if (password.isEmpty) return 0;
+    int score = 0;
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    if (RegExp(r'[A-Z]').hasMatch(password) &&
+        RegExp(r'[a-z]').hasMatch(password)) score++;
+    if (RegExp(r'[0-9]').hasMatch(password)) score++;
+    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) score++;
+    return score.clamp(0, 4);
+  }
+
+  // ─── API logic ──────────────────────────────────────────────────────────
   Future<void> _handleAuth() async {
-    final String baseUrl =
-        "https://naida-pterodactylous-chillingly.ngrok-free.dev/api";
-    final String endpoint = isLogin ? "/token/" : "/register/";
+    final validationError = _validate();
+    if (validationError != null) {
+      _showError(validationError);
+      return;
+    }
+
+    final String endpoint = isLogin
+        ? ApiConfig.tokenEndpoint
+        : ApiConfig.registerEndpoint;
 
     Map<String, String> bodyData = {};
     if (isLogin) {
@@ -88,17 +129,17 @@ class _AuthScreenState extends State<AuthScreen>
 
     try {
       final response = await http.post(
-        Uri.parse(baseUrl + endpoint),
+        Uri.parse("${ApiConfig.apiUrl}$endpoint"),
         headers: {
           "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "69420",
+          ...ApiConfig.ngrokHeaders,
         },
         body: jsonEncode(bodyData),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        debugPrint("Success! Access Token: ${responseData['access']}");
+        // Token received — do not log it
 
         if (isLogin) {
           await AuthService.saveToken(responseData['access']);
@@ -154,8 +195,7 @@ class _AuthScreenState extends State<AuthScreen>
           });
         }
       } else {
-        debugPrint("Server Error Status: ${response.statusCode}");
-        debugPrint("Server Response: ${response.body}");
+        debugPrint("Auth failed: ${response.statusCode}");
         _showError(
             "Login failed. Check username/password or Server CORS settings.");
       }
@@ -330,9 +370,14 @@ class _AuthScreenState extends State<AuthScreen>
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
-          _toggleBtn("Login", isLogin, () => setState(() => isLogin = true)),
-          _toggleBtn(
-              "Register", !isLogin, () => setState(() => isLogin = false)),
+          _toggleBtn("Login", isLogin, () {
+            HapticFeedback.selectionClick();
+            setState(() => isLogin = true);
+          }),
+          _toggleBtn("Register", !isLogin, () {
+            HapticFeedback.selectionClick();
+            setState(() => isLogin = false);
+          }),
         ],
       ),
     );
@@ -415,6 +460,8 @@ class _AuthScreenState extends State<AuthScreen>
           controller: _passwordController,
         ),
         if (!isLogin) ...[
+          AppSpacing.vSm,
+          _buildPasswordStrength(),
           AppSpacing.vBase,
           _buildTextField(
             label: 'Confirm Password',
@@ -428,6 +475,56 @@ class _AuthScreenState extends State<AuthScreen>
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildPasswordStrength() {
+    return ValueListenableBuilder(
+      valueListenable: _passwordController,
+      builder: (context, value, _) {
+        final strength = _passwordStrength(value.text);
+        const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+        const colors = [
+          AppColors.textDisabled,
+          AppColors.error,
+          AppColors.warning,
+          AppColors.info,
+          AppColors.success,
+        ];
+        return Column(
+          children: [
+            Row(
+              children: List.generate(4, (i) {
+                return Expanded(
+                  child: Container(
+                    height: 4,
+                    margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
+                    decoration: BoxDecoration(
+                      color: i < strength
+                          ? colors[strength]
+                          : AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (strength > 0) ...[
+              AppSpacing.vXs,
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: Text(
+                  labels[strength],
+                  style: AppTypography.caption.copyWith(
+                    color: colors[strength],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -485,7 +582,10 @@ class _AuthScreenState extends State<AuthScreen>
             ],
           ),
           child: ElevatedButton(
-            onPressed: _handleAuth,
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              _handleAuth();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,

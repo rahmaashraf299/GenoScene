@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -49,27 +50,21 @@ class UserProvider extends ChangeNotifier {
         }
       }
       notifyListeners();
-      debugPrint("Loaded ${_fileNamesCache.length} names from cache.");
     } catch (e) {
       debugPrint("Error loading names from prefs: $e");
     }
   }
 
-  static const String _baseUrl = "https://naida-pterodactylous-chillingly.ngrok-free.dev";
-
   /// إصلاح URL الصورة - إضافة /media/ لو ناقصة
   String? _buildFullImageUrl(String? path) {
     if (path == null || path.isEmpty) return null;
-    // لو URL كامل بس ناقص /media/
     if (path.startsWith('http')) {
       if (!path.contains('/media/')) {
         return path.replaceFirst('/profile_pics/', '/media/profile_pics/');
       }
       return path;
     }
-    // لو path نسبي
-    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
-    return "$_baseUrl/media/$cleanPath";
+    return ApiConfig.mediaUrl(path.startsWith('/') ? path.substring(1) : path);
   }
 
   // Subscription State
@@ -95,6 +90,10 @@ class UserProvider extends ChangeNotifier {
 
   void setGuestMode(bool value) {
     _isGuest = value;
+    if (value) {
+      _profilePicture = null;
+      AuthService.updateProfilePic(null);
+    }
     notifyListeners();
   }
 
@@ -114,7 +113,13 @@ class UserProvider extends ChangeNotifier {
       if (userProfile != null) {
         _username = userProfile['username'];
         _email = userProfile['email'];
-        _profilePicture = _buildFullImageUrl(userProfile['profile_picture']);
+        String? picUrl = _buildFullImageUrl(userProfile['profile_picture']);
+        // Cache-busting: append timestamp so Flutter re-fetches the image
+        if (picUrl != null && picUrl.isNotEmpty) {
+          final separator = picUrl.contains('?') ? '&' : '?';
+          picUrl = "$picUrl${separator}v=${DateTime.now().millisecondsSinceEpoch}";
+        }
+        _profilePicture = picUrl;
         AuthService.updateProfilePic(_profilePicture);
       }
     } catch (e) {
@@ -136,6 +141,7 @@ class UserProvider extends ChangeNotifier {
     _email = null;
     _profilePicture = null;
     _isGuest = false;
+    AuthService.updateProfilePic(null);
     _currentPlan = null;
     _planCategory = null;
     _remainingReports = 0;
@@ -151,16 +157,9 @@ class UserProvider extends ChangeNotifier {
     try {
       final token = await AuthService.getToken();
       final response = await http.get(
-        Uri.parse("https://naida-pterodactylous-chillingly.ngrok-free.dev/api/analysis-history/"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "ngrok-skip-browser-warning": "69420",
-          "Accept": "application/json",
-        },
+        Uri.parse("${ApiConfig.apiUrl}${ApiConfig.analysisHistoryEndpoint}"),
+        headers: ApiConfig.authMultipartHeaders(token!),
       );
-
-      // طباعة الـ JSON كاملة في الكونسول لتتبع المشاكل
-      print("Full analysis-history JSON: ${response.body}");
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
@@ -180,12 +179,11 @@ class UserProvider extends ChangeNotifier {
           }
         }
         
-        print("History Synced: ${_reports.length} reports found.");
       } else {
-        print("Failed to load history: ${response.statusCode}");
+        debugPrint("Failed to load history: ${response.statusCode}");
       }
     } catch (e) {
-      print("Error loading reports: $e");
+      debugPrint("Error loading reports: $e");
     } finally {
       _isReportsLoading = false;
       notifyListeners();
@@ -205,22 +203,15 @@ class UserProvider extends ChangeNotifier {
 
     try {
       final token = await AuthService.getToken();
-      final url = "https://naida-pterodactylous-chillingly.ngrok-free.dev/api/analysis/$id/delete/";
-
       final response = await http.delete(
-        Uri.parse(url),
-        headers: {
-          "Authorization": "Bearer $token",
-          "ngrok-skip-browser-warning": "69420",
-        },
+        Uri.parse("${ApiConfig.apiUrl}${ApiConfig.analysisDeleteEndpoint(id)}"),
+        headers: ApiConfig.authMultipartHeaders(token!),
       );
       
       if (response.statusCode != 204 && response.statusCode != 200) {
         debugPrint("Server delete failed for $id: ${response.statusCode}");
         // في حالة الفشل ممكن تعيدي تحميل التقارير للتأكد
         loadReports();
-      } else {
-        print("Report $id deleted successfully from server.");
       }
     } catch (e) {
       debugPrint("Delete process error: $e");
@@ -235,11 +226,8 @@ class UserProvider extends ChangeNotifier {
     try {
       final token = await AuthService.getToken();
       final response = await http.delete(
-        Uri.parse("https://naida-pterodactylous-chillingly.ngrok-free.dev/api/analyses/clear-all/"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "ngrok-skip-browser-warning": "69420",
-        },
+        Uri.parse("${ApiConfig.apiUrl}${ApiConfig.clearAllEndpoint}"),
+        headers: ApiConfig.authMultipartHeaders(token!),
       );
       
       if (response.statusCode != 200 && response.statusCode != 204) {
@@ -263,12 +251,8 @@ class UserProvider extends ChangeNotifier {
     try {
       final token = await AuthService.getToken();
       final response = await http.post(
-        Uri.parse("https://naida-pterodactylous-chillingly.ngrok-free.dev/api/generate-face/"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "69420",
-        },
+        Uri.parse("${ApiConfig.apiUrl}${ApiConfig.generateFaceEndpoint}"),
+        headers: ApiConfig.authHeaders(token!),
         body: jsonEncode({
           "hair_color": hair.toLowerCase(),
           "eye_color": eye.toLowerCase(),
@@ -290,7 +274,7 @@ class UserProvider extends ChangeNotifier {
               faceImageUrl: newImageUrl,
               facePrompt: newPrompt,
             );
-            print("Success! Image updated in Provider for ID: $analysisId");
+
           }
           
           _isFaceLoading = false;
@@ -299,7 +283,7 @@ class UserProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print("Provider Error: $e");
+      debugPrint("Face generation error: $e");
     } finally {
       _isFaceLoading = false;
       notifyListeners();
