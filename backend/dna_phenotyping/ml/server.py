@@ -14,8 +14,7 @@ import os
 import io
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from typing import Optional
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -282,7 +281,7 @@ def predict_single(df_row):
 # ═══════════════════════════════════════════════
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...), sample_name: Optional[str] = Form(None)):
+async def analyze(file: UploadFile = File(...)):
     """Accept a CSV file and return trait predictions."""
     if not models:
         raise HTTPException(status_code=503, detail="Models not loaded yet. Please wait.")

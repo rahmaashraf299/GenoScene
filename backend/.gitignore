@@ -1,0 +1,35 @@
+# تجاهل مجلد البيئة الافتراضية
+venv/
+env/
+.env/
+
+# تجاهل الملفات المترجمة والمؤقتة من Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# تجاهل ملفات الـ cache والاختبار
+.pytest_cache/
+.coverage
+coverage.xml
+*.coverage
+
+# تجاهل ملفات اللوج والداتابيز المحلية
+*.log
+*.sqlite3
+db.sqlite3
+
+# تجاهل الميديا والستاتيك فايلز المولدة
+media/
+staticfiles/
+collected_static/
+
+# تجاهل ملفات IDE ومحررات النصوص
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# تجاهل ملفات نظام التشغيل
+.DS_Store
+Thumbs.db
