@@ -183,7 +183,7 @@ class _AnalysisUploadScreenState extends State<AnalysisUploadScreen> {
   Widget _buildGenomicStats() {
     final stats = [
       {
-        'value': '78',
+        'value': '40',
         'unit': 'SNPs',
         'label': 'Genetic\nMarkers',
         'icon': Icons.scatter_plot_outlined,

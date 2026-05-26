@@ -102,7 +102,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
             Text(
               "Profile management and personalized DNA reports are exclusive to registered members.",
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodyMedium
+                  .copyWith(color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 40),
@@ -126,11 +127,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     // Reset guest mode before going to Auth screen
-                    Provider.of<UserProvider>(context, listen: false).clearUser();
-                    
+                    Provider.of<UserProvider>(context, listen: false)
+                        .clearUser();
+
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const AuthScreen(startWithLogin: false)),
+                      MaterialPageRoute(
+                          builder: (context) =>
+                              const AuthScreen(startWithLogin: false)),
                       (route) => false,
                     );
                   },
@@ -142,7 +146,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: Text(
                     "Register Now",
-                    style: AppTypography.titleMedium.copyWith(color: Colors.white),
+                    style:
+                        AppTypography.titleMedium.copyWith(color: Colors.white),
                   ),
                 ),
               ),
@@ -310,8 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: AppColors.info,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-              builder: (context) => const PrivacyPolicyScreen()),
+          MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
         ),
       ),
       _MenuItem(
@@ -321,8 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: AppColors.success,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-              builder: (context) => const ContactUsScreen()),
+          MaterialPageRoute(builder: (context) => const ContactUsScreen()),
         ),
       ),
     ];
@@ -331,7 +334,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsetsDirectional.only(start: 4, bottom: AppSpacing.md),
+          padding:
+              const EdgeInsetsDirectional.only(start: 4, bottom: AppSpacing.md),
           child: Text("Account", style: AppTypography.sectionHeader),
         ),
         ...menuItems.asMap().entries.map((e) => AnimatedEntrance(
@@ -342,6 +346,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         AnimatedEntrance(
           delay: const Duration(milliseconds: 320),
           child: _buildLogoutTile(),
+        ),
+        // ── الزرار الجديد هنا ──
+        const SizedBox(height: 12),
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 380),
+          child: _buildDeleteAccountTile(),
         ),
       ],
     );
@@ -491,8 +501,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: AppColors.error, size: 32),
                   ),
                   AppSpacing.vBase,
-                  Text("Stepping out?",
-                      style: AppTypography.displaySmall),
+                  Text("Stepping out?", style: AppTypography.displaySmall),
                   AppSpacing.vSm,
                   Text(
                     "Are you sure you want to log out?",
@@ -552,6 +561,182 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 1. دالة الـ Soft Delete اللي واقفة على الربط
+  Future<bool> _handleSoftDelete() async {
+    try {
+      // هنا هتحطي الـ API لما يجهز
+      await Future.delayed(const Duration(seconds: 2));
+      return true;
+    } catch (e) {
+      print("Error during soft delete: $e");
+      return false;
+    }
+  }
+
+  // 2. دالة إظهار شاشة التأكيد من الأسفل
+  void _showDeleteAccountDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            padding: AppSpacing.screenAll,
+            decoration: BoxDecoration(
+              color: AppColors.surface.withAlpha(240),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
+              border:
+                  const Border(top: BorderSide(color: AppColors.surfaceBorder)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  AppSpacing.vXl,
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                        color: AppColors.errorMuted, shape: BoxShape.circle),
+                    child: const Icon(Icons.delete_forever_rounded,
+                        color: AppColors.error, size: 32),
+                  ),
+                  AppSpacing.vBase,
+                  Text("Delete Account?",
+                      style: AppTypography.displaySmall
+                          .copyWith(color: AppColors.error)),
+                  AppSpacing.vSm,
+                  Text(
+                    "Are you sure you want to delete your account? This action is permanent and you won't be able to log in again.",
+                    textAlign: TextAlign.center,
+                    style: AppTypography.bodyMedium,
+                  ),
+                  AppSpacing.vXl,
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(AppRadius.xl),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          HapticFeedback.heavyImpact();
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(
+                                child: CircularProgressIndicator(
+                                    color: AppColors.error)),
+                          );
+
+                          bool success = await _handleSoftDelete();
+
+                          if (context.mounted) {
+                            Navigator.pop(context); // إغلاق الـ Loading
+                            Navigator.pop(context); // إغلاق الـ BottomSheet
+
+                            if (success) {
+                              await AuthService.removeToken();
+                              Provider.of<UserProvider>(context, listen: false)
+                                  .clearUser();
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const AuthScreen()),
+                                (route) => false,
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent),
+                        child: Text("Yes, Delete My Account",
+                            style: AppTypography.titleMedium
+                                .copyWith(color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                  AppSpacing.vMd,
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text("Keep My Account",
+                        style: AppTypography.bodyLarge
+                            .copyWith(color: AppColors.textSecondary)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 3. ويدجت تصميم شكل الزرار الأحمر
+  Widget _buildDeleteAccountTile() {
+    return Semantics(
+      button: true,
+      label: 'Delete account',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showDeleteAccountDialog(context),
+          borderRadius: AppRadius.card,
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.base),
+            decoration: BoxDecoration(
+              color: AppColors.errorMuted.withAlpha(20),
+              borderRadius: AppRadius.card,
+              border: Border.all(color: AppColors.error.withAlpha(40)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withAlpha(20),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded,
+                      color: AppColors.error, size: 20),
+                ),
+                AppSpacing.hMd,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Delete Account",
+                          style: AppTypography.titleSmall
+                              .copyWith(color: AppColors.error)),
+                      Text("Permanently deactivate your profile",
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.error.withAlpha(140))),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),

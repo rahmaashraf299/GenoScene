@@ -493,15 +493,15 @@ class _HistoryReportCard extends StatelessWidget {
                     AppSpacing.hXs,
                     Text(dateStr, style: AppTypography.labelSmall.copyWith(color: AppColors.textTertiary)),
                     AppSpacing.hBase,
-                    Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
-                    AppSpacing.hXs,
-                    Text(
-                      "Primary: $displayTrait",
-                      style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    // Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
+                    // AppSpacing.hXs,
+                    // Text(
+                    //   "Primary: $displayTrait",
+                    //   style: AppTypography.labelSmall.copyWith(
+                    //     color: AppColors.primary,
+                    //     fontWeight: FontWeight.w600,
+                    //   ),
+                    // ),
                   ],
                 ),
               ],

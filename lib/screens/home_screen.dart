@@ -110,142 +110,146 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics()),
-        slivers: [
-          SliverToBoxAdapter(child: AppSpacing.vBase),
+          slivers: [
+            SliverToBoxAdapter(child: AppSpacing.vBase),
 
-          // Header
-          SliverPadding(
-            padding: AppSpacing.screenH,
-            sliver: SliverToBoxAdapter(child: _buildHeader()),
-          ),
-
-          SliverToBoxAdapter(child: AppSpacing.vLg),
-
-          // 1) Hero Banner
-          SliverPadding(
-            padding: AppSpacing.screenH,
-            sliver: SliverToBoxAdapter(
-              child: AnimatedEntrance(child: _buildHeroBanner()),
+            // Header
+            SliverPadding(
+              padding: AppSpacing.screenH,
+              sliver: SliverToBoxAdapter(child: _buildHeader()),
             ),
-          ),
 
-          SliverToBoxAdapter(child: AppSpacing.vXl),
+            SliverToBoxAdapter(child: AppSpacing.vLg),
 
-          // 3) Daily Insight
-          SliverPadding(
-            padding: AppSpacing.screenH,
-            sliver: SliverToBoxAdapter(
-              child: AnimatedEntrance(
-                delay: const Duration(milliseconds: 140),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionLabel("Daily DNA Insight", Icons.lightbulb_outline),
-                    AppSpacing.vMd,
-                    _buildDailyInsight(),
-                  ],
+            // 1) Hero Banner
+            SliverPadding(
+              padding: AppSpacing.screenH,
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(child: _buildHeroBanner()),
+              ),
+            ),
+
+            SliverToBoxAdapter(child: AppSpacing.vXl),
+
+            // 3) Daily Insight
+            SliverPadding(
+              padding: AppSpacing.screenH,
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(
+                  delay: const Duration(milliseconds: 140),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel(
+                          "Daily DNA Insight", Icons.lightbulb_outline),
+                      AppSpacing.vMd,
+                      _buildDailyInsight(),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          SliverToBoxAdapter(child: AppSpacing.vXl),
+            SliverToBoxAdapter(child: AppSpacing.vXl),
 
-          // 4) Predictable Traits header
-          SliverPadding(
-            padding: const EdgeInsetsDirectional.only(start: AppSpacing.lg),
-            sliver: SliverToBoxAdapter(
-              child: AnimatedEntrance(
-                delay: const Duration(milliseconds: 150),
-                child: _sectionLabel("Predictable Traits", Icons.biotech_outlined),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(child: AppSpacing.vMd),
-          // Traits horizontal list (no extra padding — list has its own)
-          SliverToBoxAdapter(
-            child: AnimatedEntrance(
-              delay: const Duration(milliseconds: 180),
-              child: _buildTraitsRow(),
-            ),
-          ),
-
-          SliverToBoxAdapter(child: AppSpacing.vXl),
- 
-          // 5) How It Works
-          SliverPadding(
-            padding: AppSpacing.screenH,
-            sliver: SliverToBoxAdapter(
-              child: AnimatedEntrance(
-                delay: const Duration(milliseconds: 200),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionLabel("How It Works", Icons.route_outlined),
-                    AppSpacing.vMd,
-                    _buildHowItWorks(),
-                  ],
+            // 4) Predictable Traits header
+            SliverPadding(
+              padding: const EdgeInsetsDirectional.only(start: AppSpacing.lg),
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(
+                  delay: const Duration(milliseconds: 150),
+                  child: _sectionLabel(
+                      "Predictable Traits", Icons.biotech_outlined),
                 ),
               ),
             ),
-          ),
-
-          SliverToBoxAdapter(child: AppSpacing.vXl),
-
-          // 6) Next Step Guide (Replacing technical Model Stats)
-          SliverPadding(
-            padding: AppSpacing.screenH,
-            sliver: SliverToBoxAdapter(
+            SliverToBoxAdapter(child: AppSpacing.vMd),
+            // Traits horizontal list (no extra padding — list has its own)
+            SliverToBoxAdapter(
               child: AnimatedEntrance(
-                delay: const Duration(milliseconds: 220),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionLabel("Getting Started", Icons.ads_click_outlined),
-                    AppSpacing.vMd,
-                    _buildNextStepGuide(),
-                  ],
+                delay: const Duration(milliseconds: 180),
+                child: _buildTraitsRow(),
+              ),
+            ),
+
+            SliverToBoxAdapter(child: AppSpacing.vXl),
+
+            // 5) How It Works
+            SliverPadding(
+              padding: AppSpacing.screenH,
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(
+                  delay: const Duration(milliseconds: 200),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel("How It Works", Icons.route_outlined),
+                      AppSpacing.vMd,
+                      _buildHowItWorks(),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          SliverToBoxAdapter(child: AppSpacing.vXl),
+            SliverToBoxAdapter(child: AppSpacing.vXl),
 
-          // 7) SNP Spotlight header
-          SliverPadding(
-            padding: const EdgeInsetsDirectional.only(start: AppSpacing.lg),
-            sliver: SliverToBoxAdapter(
-              child: AnimatedEntrance(
-                delay: const Duration(milliseconds: 240),
-                child: _sectionLabel("SNP Spotlight", Icons.scatter_plot_outlined),
+            // 6) Next Step Guide (Replacing technical Model Stats)
+            SliverPadding(
+              padding: AppSpacing.screenH,
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(
+                  delay: const Duration(milliseconds: 220),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel(
+                          "Getting Started", Icons.ads_click_outlined),
+                      AppSpacing.vMd,
+                      _buildNextStepGuide(),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(child: AppSpacing.vMd),
-          SliverToBoxAdapter(
-            child: AnimatedEntrance(
-              delay: const Duration(milliseconds: 260),
-              child: _buildSnpSpotlight(),
-            ),
-          ),
 
-          SliverToBoxAdapter(child: AppSpacing.vXl),
+            SliverToBoxAdapter(child: AppSpacing.vXl),
 
-          // 8) CTA
-          SliverPadding(
-            padding: AppSpacing.screenH,
-            sliver: SliverToBoxAdapter(
-              child: AnimatedEntrance(
-                delay: const Duration(milliseconds: 280),
-                child: _buildCtaBanner(),
+            // 7) SNP Spotlight header
+            SliverPadding(
+              padding: const EdgeInsetsDirectional.only(start: AppSpacing.lg),
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(
+                  delay: const Duration(milliseconds: 240),
+                  child: _sectionLabel(
+                      "SNP Spotlight", Icons.scatter_plot_outlined),
+                ),
               ),
             ),
-          ),
+            SliverToBoxAdapter(child: AppSpacing.vMd),
+            SliverToBoxAdapter(
+              child: AnimatedEntrance(
+                delay: const Duration(milliseconds: 260),
+                child: _buildSnpSpotlight(),
+              ),
+            ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
-      ),
+            SliverToBoxAdapter(child: AppSpacing.vXl),
+
+            // 8) CTA
+            SliverPadding(
+              padding: AppSpacing.screenH,
+              sliver: SliverToBoxAdapter(
+                child: AnimatedEntrance(
+                  delay: const Duration(milliseconds: 280),
+                  child: _buildCtaBanner(),
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          ],
+        ),
       ),
     );
   }
@@ -256,9 +260,8 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Consumer<UserProvider>(
           builder: (context, userProvider, _) {
-            final pic = userProvider.isGuest
-                ? null
-                : userProvider.profilePicture;
+            final pic =
+                userProvider.isGuest ? null : userProvider.profilePicture;
             return Semantics(
               label: 'Profile picture',
               child: SizedBox(
@@ -391,8 +394,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _smallBadge("Forensic Genetics"),
                 AppSpacing.vSm,
-                Text("Welcome to GenoScene",
-                    style: AppTypography.displayLarge),
+                Text("Welcome to GenoScene", style: AppTypography.displayLarge),
                 AppSpacing.vXs,
                 Text(
                   "Predict physical traits from DNA using AI-powered SNP analysis.",
@@ -406,7 +408,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 
   // ── 3) DAILY INSIGHT ──
   Widget _buildDailyInsight() {
@@ -452,13 +453,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Did you know?",
-                          style: AppTypography.titleSmall),
+                      Text("Did you know?", style: AppTypography.titleSmall),
                       AppSpacing.vXs,
                       Text(
                         _dailyFact ?? "",
-                        style: AppTypography.bodyMedium
-                            .copyWith(height: 1.6),
+                        style: AppTypography.bodyMedium.copyWith(height: 1.6),
                       ),
                     ],
                   ),
@@ -476,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'title': 'Eye Colour',
         'genes': 'HERC2, OCA2',
         'snps': '13 SNPs',
-        'acc': '96.2%',
+        'acc': '99.08%',
         'color': AppColors.info,
       },
       {
@@ -484,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'title': 'Hair Colour',
         'genes': 'MC1R, TYR',
         'snps': '35 SNPs',
-        'acc': '95.1%',
+        'acc': '94.53%',
         'color': AppColors.hairPurple,
       },
       {
@@ -492,7 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'title': 'Skin Tone',
         'genes': 'SLC24A5',
         'snps': '30 SNPs',
-        'acc': '95.0%',
+        'acc': '88.37%',
         'color': AppColors.warning,
       },
       {
@@ -560,11 +559,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const Spacer(),
-                Text(t['title'] as String,
-                    style: AppTypography.titleSmall),
+                Text(t['title'] as String, style: AppTypography.titleSmall),
                 AppSpacing.vXs,
-                Text(t['genes'] as String,
-                    style: AppTypography.labelSmall),
+                Text(t['genes'] as String, style: AppTypography.labelSmall),
                 AppSpacing.vXs,
                 Container(
                   padding:
@@ -657,8 +654,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(s['title'] as String,
                             style: AppTypography.titleSmall),
                         Text(s['sub'] as String,
-                            style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textTertiary)),
+                            style: AppTypography.bodySmall
+                                .copyWith(color: AppColors.textTertiary)),
                       ],
                     ),
                   ),
@@ -724,8 +721,8 @@ class _HomeScreenState extends State<HomeScreen> {
             AppSpacing.vBase,
             Text(
               "Embark on a forensic journey. Every SNP tells a story of ancestry and physical traits. Connect your data to unlock the vault of genetic secrets.",
-              style:
-                  AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodyMedium
+                  .copyWith(color: AppColors.textSecondary),
             ),
             AppSpacing.vLg,
             Row(
@@ -786,10 +783,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
-
   // ── 7) INTERACTABLE CARD (Scale Effect) ──
-  Widget _InteractableCard({required Widget child, required VoidCallback onTap}) {
+  Widget _InteractableCard(
+      {required Widget child, required VoidCallback onTap}) {
     return _PressableScale(
       onTap: onTap,
       child: child,
@@ -872,12 +868,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         border: Border.all(color: c.withAlpha(60)),
                       ),
                       child: Text(s['rs'] as String,
-                          style: AppTypography.mono.copyWith(
-                              color: c, fontSize: 10)),
+                          style: AppTypography.mono
+                              .copyWith(color: c, fontSize: 10)),
                     ),
                     AppSpacing.hSm,
-                    Text(s['gene'] as String,
-                        style: AppTypography.labelLarge),
+                    Text(s['gene'] as String, style: AppTypography.labelLarge),
                   ],
                 ),
                 AppSpacing.vXs,
@@ -936,8 +931,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Ready to Analyze?",
-                        style: AppTypography.titleMedium),
+                    Text("Ready to Analyze?", style: AppTypography.titleMedium),
                     AppSpacing.vXs,
                     Text(
                       "Upload your CSV and get trait predictions in seconds.",
@@ -999,13 +993,11 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: (color ?? AppColors.primary).withAlpha(28),
         borderRadius: BorderRadius.circular(AppRadius.xs),
-        border: Border.all(
-            color: (color ?? AppColors.primary).withAlpha(60)),
+        border: Border.all(color: (color ?? AppColors.primary).withAlpha(60)),
       ),
       child: Text(
         label,
-        style: AppTypography.badge
-            .copyWith(color: color ?? AppColors.primary),
+        style: AppTypography.badge.copyWith(color: color ?? AppColors.primary),
       ),
     );
   }
@@ -1019,11 +1011,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final items = [
       (Icons.home_outlined, Icons.home_rounded, "Home"),
-      (isGuest ? Icons.lock_outline_rounded : Icons.analytics_outlined,
-          isGuest ? Icons.lock_rounded : Icons.analytics_rounded, "Analysis"),
+      (
+        isGuest ? Icons.lock_outline_rounded : Icons.analytics_outlined,
+        isGuest ? Icons.lock_rounded : Icons.analytics_rounded,
+        "Analysis"
+      ),
       (Icons.school_outlined, Icons.school_rounded, "Learn"),
-      (isGuest ? Icons.lock_outline_rounded : Icons.person_outline,
-          isGuest ? Icons.lock_rounded : Icons.person_rounded, "Profile"),
+      (
+        isGuest ? Icons.lock_outline_rounded : Icons.person_outline,
+        isGuest ? Icons.lock_rounded : Icons.person_rounded,
+        "Profile"
+      ),
     ];
 
     return Container(
