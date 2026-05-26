@@ -13,6 +13,8 @@ import 'contact_us_screen.dart';
 import 'auth_screen.dart';
 import 'subscription_screen.dart';
 import 'analysis_history_screen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -568,12 +570,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 1. دالة الـ Soft Delete اللي واقفة على الربط
   Future<bool> _handleSoftDelete() async {
     try {
-      // هنا هتحطي الـ API لما يجهز
-      await Future.delayed(const Duration(seconds: 2));
-      return true;
+      // هنجيب التوكن بتاع اليوزر (تأكدي من اسم الميثود عندك في AuthService)
+      final String? token = await AuthService.getToken();
+
+      if (token == null) return false;
+
+      // مسار الـ API (تأكدي من المتغير baseUrl في ApiConfig)
+      final url = Uri.parse('${ApiConfig.baseUrl}/api/account/delete/');
+
+      final response = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          // لو الـ ngrokHeaders عبارة عن Map بنعملها spread بالشكل ده
+          ...ApiConfig.ngrokHeaders,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        final data = json.decode(response.body);
+        // بنتأكد إن الباك إند رجع success: true
+        if (data['success'] == true) {
+          return true;
+        }
+      }
+      return false;
     } catch (e) {
       print("Error during soft delete: $e");
       return false;
@@ -641,6 +665,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: ElevatedButton(
                         onPressed: () async {
                           HapticFeedback.heavyImpact();
+
+                          // إظهار الـ Loading
                           showDialog(
                             context: context,
                             barrierDismissible: false,
@@ -653,17 +679,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           if (context.mounted) {
                             Navigator.pop(context); // إغلاق الـ Loading
-                            Navigator.pop(context); // إغلاق الـ BottomSheet
 
                             if (success) {
+                              Navigator.pop(context); // إغلاق الـ BottomSheet
+
+                              // مسح البيانات وتوجيه اليوزر لشاشة الدخول
                               await AuthService.removeToken();
                               Provider.of<UserProvider>(context, listen: false)
                                   .clearUser();
+
                               Navigator.pushAndRemoveUntil(
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) => const AuthScreen()),
                                 (route) => false,
+                              );
+                            } else {
+                              // لو الحذف فشل نظهر رسالة خطأ
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      "Failed to delete account. Please try again."),
+                                  backgroundColor: AppColors.error,
+                                ),
                               );
                             }
                           }
