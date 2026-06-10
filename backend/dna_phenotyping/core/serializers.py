@@ -1,8 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import DNASample, Prediction, ModelLog
-from django.core.mail import send_mail
-from django.utils.crypto import get_random_string
+from .models import DNASample, Prediction, ModelLog, Analysis, GeneratedFace
 
 User = get_user_model()
 
@@ -40,43 +38,62 @@ class DNASampleSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'uploaded_at')
 
 
-# class PredictionSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Prediction
-#         fields = (
-#             'id',
-#             'eye_color', 'eye_score',
-#             'hair_color', 'hair_score',
-#             'skin_tone', 'skin_score',
-#             'gender', 'gender_score',
-#             'created_at'
-#         )
-#         read_only_fields = ('id', 'created_at')
-
 class PredictionSerializer(serializers.ModelSerializer):
+    analysis = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Prediction
         fields = (
             'id',
+            'analysis',
             'eye_color', 'eye_score',
             'hair_color', 'hair_score',
             'skin_tone', 'skin_score',
             'gender', 'gender_score',
             'created_at'
         )
-        read_only_fields = ('id', 'created_at')
+        read_only_fields = ('id', 'analysis', 'created_at')
 
-class PredictionCreateSerializer(serializers.ModelSerializer):
+
+class PredictionSerializer(serializers.ModelSerializer):
+    analysis = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Prediction
         fields = (
-            'dna_sample',
+            'id',
+            'analysis',
             'eye_color', 'eye_score',
             'hair_color', 'hair_score',
             'skin_tone', 'skin_score',
-            'gender', 'gender_score',
+            'gender',           # gender_score تم حذفه
+            'created_at'
+        )
+        read_only_fields = ('id', 'analysis', 'created_at')
+
+
+class PredictionCreateSerializer(serializers.ModelSerializer):
+    analysis = serializers.PrimaryKeyRelatedField(queryset=Analysis.objects.all())
+
+    class Meta:
+        model = Prediction
+        fields = (
+            'analysis',
+            'eye_color', 'eye_score',
+            'hair_color', 'hair_score',
+            'skin_tone', 'skin_score',
+            'gender',
+            # gender_score تم حذفه
         )
 
+
+class GeneratedFaceSerializer(serializers.ModelSerializer):
+    prediction = serializers.PrimaryKeyRelatedField(read_only=True)
+    # analysis = serializers.PrimaryKeyRelatedField(read_only=True)  # لو حافظين عليه
+
+    class Meta:
+        model = GeneratedFace
+        fields = ['id', 'prediction', 'image_url', 'created_at', ...]
 
 
 
@@ -86,10 +103,11 @@ class ModelLogSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('created_at',)
 
+
 class UserProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.ImageField(
-        allow_null=True,          # ← مهم
-        required=False,           # ← مهم
+        allow_null=True,
+        required=False,
         read_only=False,
         use_url=True
     )
@@ -115,8 +133,8 @@ class PasswordChangeSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Old password is incorrect.")
         return value
-    
-    
+
+
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
@@ -135,8 +153,8 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError({"new_password": "Passwords do not match."})
         return attrs
-    
-    
+
+
 class ContactUsSerializer(serializers.Serializer):
     username = serializers.CharField(required=True, max_length=100)
     email = serializers.EmailField(required=True)

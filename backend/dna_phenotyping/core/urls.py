@@ -22,6 +22,7 @@ from .views import (
     model_logs,
     delete_analysis,           # ← إضافة حذف تحليل واحد
     clear_all_analyses,        # ← إضافة مسح كل التحاليل (Clear All)
+    delete_account,
 )
 
 router = DefaultRouter()
@@ -58,6 +59,7 @@ urlpatterns = [
     # Delete Endpoints (الجديدة)
     path('analysis/<int:analysis_id>/delete/', delete_analysis, name='delete_analysis'),
     path('analyses/clear-all/', clear_all_analyses, name='clear_all_analyses'),
+    path('account/delete/', delete_account, name='delete_account'),
 ]
 
 # if settings.DEBUG:
